@@ -295,11 +295,11 @@ export async function getAllCounts(): Promise<ActionResponse<{
       .from('unidades')
       .select('*', { count: 'exact', head: true });
     
-    // Count mora (estado != 'al_dia')
+    // Count mora - from mora_logs table (estado_nuevo != 'al_dia')
     const { count: countMora, error: errorMora } = await supabase
-      .from('unidades')
+      .from('mora_logs')
       .select('*', { count: 'exact', head: true })
-      .neq('estado_mora', 'al_dia');
+      .neq('estado_nuevo', 'al_dia');
     
     // Count arreglos pendientes
     const { count: countArreglos, error: errorArreglos } = await supabase
@@ -308,7 +308,12 @@ export async function getAllCounts(): Promise<ActionResponse<{
       .eq('estado', 'pendiente');
     
     if (errorConsorcios || errorUnidades || errorMora || errorArreglos) {
-      logger.error('Error getAllCounts', { errorConsorcios, errorUnidades, errorMora, errorArreglos });
+      logger.error('Error getAllCounts', { 
+        errorConsorcios: errorConsorcios?.message,
+        errorUnidades: errorUnidades?.message, 
+        errorMora: errorMora?.message,
+        errorArreglos: errorArreglos?.message 
+      });
       return { success: false, error: 'Error obteniendo counts' };
     }
     

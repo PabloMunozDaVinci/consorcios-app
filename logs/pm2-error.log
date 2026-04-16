@@ -4101,3 +4101,7 @@
 2026-04-16 18:02:46 -03:00:     at ignore-listed frames
 2026-04-16 18:03:15 -03:00: ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
 2026-04-16 18:09:01 -03:00: ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
+2026-04-16 18:10:01 -03:00: [2026-04-16T21:10:01.451Z] [ERROR] Error getAllCounts {"error":"[object Object]"}
+2026-04-16 18:10:52 -03:00: [2026-04-16T21:10:52.796Z] [ERROR] Error getAllCounts {"error":"[object Object]"}
+2026-04-16 18:10:55 -03:00: [2026-04-16T21:10:55.425Z] [ERROR] Error getAllCounts {"error":"[object Object]"}
+2026-04-16 18:11:59 -03:00: ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
