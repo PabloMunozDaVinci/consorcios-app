@@ -4,14 +4,20 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Building2, Mail, Lock, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { createSupabaseClient } from '@/lib/supabase';
+import { logLoginSuccess, logLoginFailed, logIPBlocked } from '@/lib/security/logger';
+import { getGeoFromIP as getClientIP } from '@/lib/geolocation';
+import { isIPBlocked, blockIP } from '@/lib/security/blocklist';
+
+const supabase = createSupabaseClient();
 
 export default function LoginPage() {
   const router = useRouter();
-  const supabase = createSupabaseClient();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get('redirect') || '/';
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -25,19 +31,44 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      const { error: authError } = await supabase.auth.signInWithPassword({
+      // Get client IP for logging
+      const ip = await getClientIPAsync();
+      
+      // Check if IP is blocked before attempting login
+      const blocked = await isIPBlocked(ip);
+      if (blocked) {
+        setError('Tu IP está bloqueada. Intenta más tarde.');
+        setLoading(false);
+        return;
+      }
+
+      const { error: authError, data } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (authError) {
-        setError(authError.message);
+        // Log failed login
+        await logLoginFailed(email, ip, authError.message);
+        
+        // Check if it's a "invalid login credentials" error
+        if (authError.message.toLowerCase().includes('invalid login credentials')) {
+          setError('Email o contraseña incorrectos');
+        } else {
+          setError(authError.message);
+        }
+        
         setLoading(false);
         return;
       }
 
-      // Login successful - redirect to dashboard
-      router.push('/');
+      // Log successful login
+      if (data?.session) {
+        await logLoginSuccess(email, ip);
+      }
+
+      // Login successful - redirect
+      router.push(redirect);
       router.refresh();
     } catch (err) {
       setError('Error de conexión');
@@ -150,4 +181,15 @@ export default function LoginPage() {
       </div>
     </div>
   );
+}
+
+// Helper to get IP from client side
+async function getClientIPAsync(): Promise<string> {
+  try {
+    const response = await fetch('https://api.ipify.org?format=json');
+    const data = await response.json();
+    return data.ip;
+  } catch {
+    return 'unknown';
+  }
 }

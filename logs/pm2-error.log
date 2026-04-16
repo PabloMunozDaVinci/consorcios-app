@@ -4114,3 +4114,5 @@
 2026-04-16 18:27:14 -03:00: [2026-04-16T21:27:14.866Z] [ERROR] Error creating pago {"error":"[object Object]"}
 2026-04-16 18:29:05 -03:00: ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
 2026-04-16 18:30:16 -03:00: ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
+2026-04-16 19:28:54 -03:00: ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
+2026-04-16 19:48:42 -03:00: ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.

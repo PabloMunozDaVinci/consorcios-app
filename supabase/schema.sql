@@ -296,7 +296,44 @@ VALUES ('mantenimiento', 'mantenimiento', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- =============================================================================
--- 7. SEED DATA
+-- 7. SECURITY TABLES
+-- =============================================================================
+
+-- security_logs: Auditoría de eventos de seguridad
+CREATE TABLE IF NOT EXISTS security_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_type VARCHAR(50) NOT NULL,
+  email VARCHAR(255),
+  ip_address VARCHAR(45) NOT NULL,
+  country_code VARCHAR(2),
+  user_agent TEXT,
+  details JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_security_logs_ip ON security_logs (ip_address);
+CREATE INDEX IF NOT EXISTS idx_security_logs_event ON security_logs (event_type);
+CREATE INDEX IF NOT EXISTS idx_security_logs_created ON security_logs (created_at DESC);
+
+-- blocked_ips: IPs bloqueadas por seguridad
+CREATE TABLE IF NOT EXISTS blocked_ips (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  ip_address VARCHAR(45) NOT NULL UNIQUE,
+  reason VARCHAR(50) NOT NULL,
+  country_code VARCHAR(2),
+  attempts_count INTEGER DEFAULT 1,
+  blocked_until TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_blocked_ips_ip ON blocked_ips (ip_address);
+
+-- RLS for security tables
+ALTER TABLE security_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE blocked_ips ENABLE ROW LEVEL SECURITY;
+
+-- =============================================================================
+-- 8. SEED DATA
 -- =============================================================================
 
 INSERT INTO consorcios (nombre, direccion, ciudad, email_admin)
