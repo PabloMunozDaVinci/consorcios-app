@@ -273,6 +273,61 @@ export async function createUnidad(formData: FormData, edificioId: string): Prom
 }
 
 // =============================================================================
+// GET COUNTS - Para el dashboard
+// =============================================================================
+
+export async function getAllCounts(): Promise<ActionResponse<{
+  consorcios: number;
+  unidades: number;
+  mora: number;
+  arreglos: number;
+}>> {
+  try {
+    const supabase = createSupabaseAdmin();
+    
+    // Count consorcios
+    const { count: countConsorcios, error: errorConsorcios } = await supabase
+      .from('consorcios')
+      .select('*', { count: 'exact', head: true });
+    
+    // Count unidades
+    const { count: countUnidades, error: errorUnidades } = await supabase
+      .from('unidades')
+      .select('*', { count: 'exact', head: true });
+    
+    // Count mora (estado != 'al_dia')
+    const { count: countMora, error: errorMora } = await supabase
+      .from('unidades')
+      .select('*', { count: 'exact', head: true })
+      .neq('estado_mora', 'al_dia');
+    
+    // Count arreglos pendientes
+    const { count: countArreglos, error: errorArreglos } = await supabase
+      .from('arreglos')
+      .select('*', { count: 'exact', head: true })
+      .eq('estado', 'pendiente');
+    
+    if (errorConsorcios || errorUnidades || errorMora || errorArreglos) {
+      logger.error('Error getAllCounts', { errorConsorcios, errorUnidades, errorMora, errorArreglos });
+      return { success: false, error: 'Error obteniendo counts' };
+    }
+    
+    return { 
+      success: true, 
+      data: {
+        consorcios: countConsorcios || 0,
+        unidades: countUnidades || 0,
+        mora: countMora || 0,
+        arreglos: countArreglos || 0,
+      }
+    };
+  } catch (error) {
+    logger.error('Error getAllCounts', error);
+    return { success: false, error: String(error) };
+  }
+}
+
+// =============================================================================
 // SEARCH
 // =============================================================================
 

@@ -4100,3 +4100,4 @@
 2026-04-16 18:02:46 -03:00: Error: Could not find a production build in the '.next' directory. Try building your app with 'next build' before starting the production server. https://nextjs.org/docs/messages/production-start-no-build-id
 2026-04-16 18:02:46 -03:00:     at ignore-listed frames
 2026-04-16 18:03:15 -03:00: ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
+2026-04-16 18:09:01 -03:00: ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.

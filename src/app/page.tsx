@@ -3,15 +3,17 @@
 // =============================================================================
 import Link from 'next/link';
 import { Building2, Users, Wrench, CreditCard, AlertTriangle, CheckCircle } from 'lucide-react';
-import { getConsorcios } from '@/actions/consorcios';
+import { getAllCounts } from '@/actions/consorcios';
 
 // FORZAR RENDERIZADO DINÁMICO - Sin cache
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  // Get stats (mock for now)
-  const consorciosResult = await getConsorcios();
-  const totalConsorcios = consorciosResult.success ? consorciosResult.data?.length || 0 : 0;
+  // Get all counts from database
+  const countsResult = await getAllCounts();
+  const counts = countsResult.success && countsResult.data
+    ? countsResult.data 
+    : { consorcios: 0, unidades: 0, mora: 0, arreglos: 0 };
 
   return (
     <div className="space-y-8">
@@ -30,28 +32,28 @@ export default async function Home() {
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Consorcios"
-          value={String(totalConsorcios)}
+          value={String(counts.consorcios)}
           icon={Building2}
           href="/consorcios"
           color="blue"
         />
         <StatCard
           title="Unidades"
-          value="—"
+          value={String(counts.unidades)}
           icon={Users}
           href="/unidades"
           color="green"
         />
         <StatCard
           title="En Mora"
-          value="—"
+          value={String(counts.mora)}
           icon={AlertTriangle}
           href="/admin/mora"
           color="red"
         />
         <StatCard
           title="Arreglos"
-          value="—"
+          value={String(counts.arreglos)}
           icon={Wrench}
           href="/mantenimiento"
           color="yellow"
