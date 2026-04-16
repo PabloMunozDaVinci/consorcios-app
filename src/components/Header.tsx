@@ -1,12 +1,13 @@
 'use client';
 
 // =============================================================================
-// COMPONENT: Header - Responsive Navigation
+// COMPONENT: Header - Responsive Navigation with Auth
 // =============================================================================
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Building2, Wrench, CreditCard, Users, Home, List, X } from 'lucide-react';
+import { Building2, Wrench, CreditCard, Users, Home, List, X, LogIn, LogOut, User as UserIcon } from 'lucide-react';
 import { useState } from 'react';
+import { useUser } from '@/hooks/useUser';
 
 const navItems = [
   { href: '/consorcios', label: 'Consorcios', icon: Building2 },
@@ -19,12 +20,7 @@ const navItems = [
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
-
-  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
-    // Close mobile menu on navigation
-    setMobileMenuOpen(false);
-    // Allow default link behavior to continue
-  };
+  const { user, propietario, loading, signOut } = useUser();
 
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -58,6 +54,34 @@ export function Header() {
             );
           })}
         </nav>
+
+        {/* Auth Section */}
+        <div className="hidden md:flex items-center gap-2">
+          {loading ? (
+            <div className="w-8 h-8 bg-gray-200 rounded-full animate-pulse" />
+          ) : user ? (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">
+                {propietario ? `${propietario.nombre}` : user.email}
+              </span>
+              <Link
+                href="/logout"
+                className="p-2 text-gray-500 hover:text-red-600 rounded-lg hover:bg-gray-100"
+                title="Cerrar sesión"
+              >
+                <LogOut className="w-5 h-5" />
+              </Link>
+            </div>
+          ) : (
+            <Link
+              href="/login"
+              className="flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg"
+            >
+              <LogIn className="w-4 h-4" />
+              <span>Ingresar</span>
+            </Link>
+          )}
+        </div>
 
         {/* Mobile Menu Button */}
         <button
@@ -99,6 +123,37 @@ export function Header() {
                 </Link>
               );
             })}
+
+            {/* Mobile Auth */}
+            <div className="border-t border-gray-200 mt-2 pt-2">
+              {loading ? (
+                <div className="px-4 py-3 text-gray-500">Cargando...</div>
+              ) : user ? (
+                <>
+                  <div className="px-4 py-2 text-sm text-gray-600">
+                    <UserIcon className="w-4 h-4 inline mr-2" />
+                    {propietario ? `${propietario.nombre} ${propietario.apellido}` : user.email}
+                  </div>
+                  <Link
+                    href="/logout"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center gap-3 px-4 py-3 text-base rounded-lg text-red-600 hover:bg-red-50"
+                  >
+                    <LogOut className="w-5 h-5" />
+                    <span className="font-medium">Cerrar sesión</span>
+                  </Link>
+                </>
+              ) : (
+                <Link
+                  href="/login"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 px-4 py-3 text-base rounded-lg text-blue-600 hover:bg-blue-50"
+                >
+                  <LogIn className="w-5 h-5" />
+                  <span className="font-medium">Ingresar</span>
+                </Link>
+              )}
+            </div>
           </nav>
         </div>
       )}

@@ -27,13 +27,19 @@ export async function POST(request: Request) {
     
     const supabase = createSupabaseAdmin();
     
+    // Buscar propietario de la unidad
     const { data: propietarios } = await supabase
       .from('propietarios')
       .select('id')
       .eq('unidad_id', unidad_id)
       .limit(1);
     
-    const propietario_id = propietarios?.[0]?.id || null;
+    const propietario_id = propietarios?.[0]?.id;
+    
+    // Si no hay propietario, dar aviso pero permitir igual el pago
+    if (!propietario_id) {
+      logger.warn('Pago sin propietario asignado', { unidad_id });
+    }
     
     // Convertir "YYYY-MM" a fecha completa "YYYY-MM-01"
     const mesCompleto = `${mes_pagado}-01`;

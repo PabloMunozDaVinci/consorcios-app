@@ -94,7 +94,7 @@ CREATE TABLE propietarios (
 CREATE TABLE pagos (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   unidad_id UUID NOT NULL REFERENCES unidades(id) ON DELETE CASCADE,
-  propietario_id UUID NOT NULL REFERENCES propietarios(id) ON DELETE CASCADE,
+  propietario_id UUID REFERENCES propietarios(id) ON DELETE SET NULL,
   monto DECIMAL(12,2) NOT NULL,
   mes_pagado DATE NOT NULL,
   fecha_pago DATE DEFAULT CURRENT_DATE,

@@ -4107,3 +4107,8 @@
 2026-04-16 18:11:59 -03:00: ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
 2026-04-16 18:16:30 -03:00: ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
 2026-04-16 18:18:42 -03:00: [2026-04-16T21:18:42.138Z] [ERROR] Error creating pago {"error":"[object Object]"}
+2026-04-16 18:20:22 -03:00: ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
+2026-04-16 18:21:11 -03:00: [2026-04-16T21:21:11.708Z] [ERROR] Error creating pago {"error":"[object Object]"}
+2026-04-16 18:22:01 -03:00: ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
+2026-04-16 18:27:14 -03:00: [2026-04-16T21:27:14.527Z] [WARN] Pago sin propietario asignado {"unidad_id":"9c7a341b-09b0-4f88-b095-7b0644b7a907"}
+2026-04-16 18:27:14 -03:00: [2026-04-16T21:27:14.866Z] [ERROR] Error creating pago {"error":"[object Object]"}
