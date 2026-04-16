@@ -1,23 +1,21 @@
 // =============================================================================
-// PAGE: Login - Authentication
+// PAGE: Recuperar Password
 // =============================================================================
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Building2, Mail, Lock, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { Building2, Mail, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import { createSupabaseClient } from '@/lib/supabase';
 
-export default function LoginPage() {
+export default function RecuperarPasswordPage() {
   const router = useRouter();
   const supabase = createSupabaseClient();
   
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -25,24 +23,56 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      const { error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const response = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
       });
-
-      if (authError) {
-        setError(authError.message);
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        setSuccess(true);
+      } else {
+        setError(result.error || 'Error al procesar solicitud');
         setLoading(false);
-        return;
       }
-
-      // Login successful - redirect to dashboard
-      router.push('/');
-      router.refresh();
     } catch (err) {
       setError('Error de conexión');
       setLoading(false);
     }
+  }
+
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-2xl mb-4">
+              <CheckCircle className="w-8 h-8 text-green-600" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900">Revisá tu email</h1>
+            <p className="text-gray-500 mt-1">Te enviamos un link para recuperar tu contraseña</p>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border p-6 text-center">
+            <p className="text-gray-600 text-sm">
+              Si el email <strong className="text-gray-900">{email}</strong> está registrado, 
+              vas a recibir un link para restablecer tu contraseña.
+            </p>
+            <p className="text-gray-500 text-xs mt-4">
+              Revisa también tu carpeta de spam
+            </p>
+          </div>
+
+          <p className="text-center mt-6 text-gray-500">
+            <Link href="/login" className="text-blue-600 hover:underline font-medium">
+              Volver al login
+            </Link>
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -53,8 +83,8 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4">
             <Building2 className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Consorcios App</h1>
-          <p className="text-gray-500 mt-1">Ingresá a tu cuenta</p>
+          <h1 className="text-2xl font-bold text-gray-900">Recuperar Contraseña</h1>
+          <p className="text-gray-500 mt-1">Ingresá tu email para restaurar el acceso</p>
         </div>
 
         {/* Error */}
@@ -67,7 +97,6 @@ export default function LoginPage() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border p-6 space-y-5">
-          {/* Email */}
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
               Email
@@ -87,34 +116,6 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Password */}
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-              Contraseña
-            </label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="••••••••"
-                autoComplete="current-password"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-              </button>
-            </div>
-          </div>
-
-          {/* Submit */}
           <button
             type="submit"
             disabled={loading}
@@ -123,31 +124,25 @@ export default function LoginPage() {
             {loading ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                Ingresando...
+                Enviando...
               </>
             ) : (
-              'Ingresar'
+              'Enviar Link de Recuperación'
             )}
           </button>
-
-          {/* Forgot password */}
-          <div className="text-center">
-            <Link href="/recuperar-password" className="text-sm text-gray-500 hover:text-gray-700">
-              ¿Olvidaste tu contraseña?
-            </Link>
-          </div>
         </form>
 
-        {/* Register info */}
-        <div className="mt-6 p-4 bg-gray-50 rounded-xl text-center">
-          <p className="text-sm text-gray-600">
-            El registro está gestionado por el administrador. Contactalo para crear tu cuenta.
-          </p>
-          <Link href="/register" className="text-sm text-blue-600 hover:underline mt-2 block">
-            Más información
+        {/* Login link */}
+        <p className="text-center mt-6 text-gray-500">
+          ¿Recordaste tu contraseña?{' '}
+          <Link href="/login" className="text-blue-600 hover:underline font-medium">
+            Iniciá sesión
           </Link>
-        </div>
+        </p>
       </div>
     </div>
   );
 }
+
+// Needed for router
+import { useRouter } from 'next/navigation';
