@@ -12,10 +12,16 @@ export async function POST(request: Request) {
     
     logger.debug('Create Pago request', body);
     
-    if (!unidad_id || !monto || !mes_pagado) {
+    // Validación granular
+    const errores: string[] = [];
+    if (!unidad_id || unidad_id === '') errores.push('Selecciona una unidad');
+    if (!monto || monto === '' || parseFloat(monto) <= 0) errores.push('Ingresa un monto válido');
+    if (!mes_pagado || mes_pagado === '') errores.push('Selecciona el mes a pagar');
+    
+    if (errores.length > 0) {
       return Response.json({ 
         success: false, 
-        error: 'Unidad, monto y mes son obligatorios' 
+        error: errores.join('. ') 
       }, { status: 400 });
     }
     

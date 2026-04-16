@@ -3,16 +3,55 @@
 // =============================================================================
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+
+// Generar lista de meses (últimos 12 meses)
+function getMesesOptions() {
+  const meses: { value: string; label: string }[] = [];
+  const now = new Date();
+  for (let i = 0; i < 12; i++) {
+    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const value = date.toISOString().slice(0, 7); // YYYY-MM
+    const label = date.toLocaleDateString('es-AR', { year: 'numeric', month: 'long' }).replace(/^\w/, c => c.toUpperCase());
+    meses.push({ value, label });
+  }
+  return meses;
+}
+
+interface Unidad {
+  id: string;
+  numero: string;
+  piso: number;
+  edificio_nombre: string;
+}
 
 export default function NuevoPagoPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [unidades, setUnidades] = useState<Unidad[]>([]);
+  const [loadingUnidades, setLoadingUnidades] = useState(true);
+
+  useEffect(() => {
+    async function fetchUnidades() {
+      try {
+        const response = await fetch('/api/unidades?list=true');
+        const result = await response.json();
+        if (result.success && result.data) {
+          setUnidades(result.data);
+        }
+      } catch (err) {
+        console.error('Error loading unidades:', err);
+      } finally {
+        setLoadingUnidades(false);
+      }
+    }
+    fetchUnidades();
+  }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -25,10 +64,26 @@ export default function NuevoPagoPage() {
     try {
       const formData = new FormData(e.currentTarget as HTMLFormElement);
       
+      const unidad_id = formData.get('unidad_id') as string;
+      const monto = formData.get('monto') as string;
+      const mes_pagado = formData.get('mes_pagado') as string;
+      
+      // Validación granular
+      const errores: string[] = [];
+      if (!unidad_id || unidad_id === '') errores.push('Debes seleccionar una unidad');
+      if (!monto || parseFloat(monto) <= 0) errores.push('El monto debe ser mayor a 0');
+      if (!mes_pagado || mes_pagado === '') errores.push('Debes seleccionar el mes a pagar');
+      
+      if (errores.length > 0) {
+        setError(errores.join('. '));
+        setIsLoading(false);
+        return;
+      }
+      
       const data = {
-        unidad_id: formData.get('unidad_id') as string,
-        monto: formData.get('monto') as string,
-        mes_pagado: formData.get('mes_pagado') as string,
+        unidad_id,
+        monto,
+        mes_pagado,
         medio_pago: formData.get('medio_pago') as string || 'transferencia',
         nro_comprobante: formData.get('nro_comprobante') as string || undefined,
       };
@@ -101,11 +156,33 @@ export default function NuevoPagoPage() {
       {/* Form */}
       <form onSubmit={handleSubmit} className="bg-white rounded-xl border shadow-sm p-6 space-y-6">
         <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Unidad *</label>
+          {loadingUnidades ? (
+            <div className="w-full px-4 py-3 border rounded-lg bg-gray-50 animate-pulse">Cargando unidades...</div>
+          ) : (
+            <select 
+              name="unidad_id" 
+              required
+              className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Seleccionar unidad...</option>
+              {unidades.map(u => (
+                <option key={u.id} value={u.id}>
+                  {u.edificio_nombre} - Piso {u.piso}, Unidad {u.numero}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Monto *</label>
           <input
             name="monto"
             type="number"
             required
+            step="0.01"
+            min="0"
             className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
             placeholder="150000"
           />
@@ -113,12 +190,18 @@ export default function NuevoPagoPage() {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Mes que se paga *</label>
-          <input
-            name="mes_pagado"
-            type="month"
+          <select 
+            name="mes_pagado" 
             required
             className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
-          />
+          >
+            <option value="">Seleccionar mes...</option>
+            {getMesesOptions().map(mes => (
+              <option key={mes.value} value={mes.value}>
+                {mes.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div>
@@ -142,7 +225,7 @@ export default function NuevoPagoPage() {
 
         <button
           type="submit"
-          disabled={isLoading}
+          disabled={isLoading || loadingUnidades}
           className="w-full py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 flex items-center justify-center gap-2 text-lg font-medium"
         >
           {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
