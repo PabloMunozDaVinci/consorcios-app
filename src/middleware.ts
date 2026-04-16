@@ -67,7 +67,6 @@ function getUserAgent(request: NextRequest): string {
 function isPublicRoute(pathname: string): boolean {
   // Public routes - no auth required
   const publicRoutes = [
-    '/',
     '/login',
     '/logout', 
     '/register',

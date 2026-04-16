@@ -4116,3 +4116,214 @@
 2026-04-16 18:30:16 -03:00: ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
 2026-04-16 19:28:54 -03:00: ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
 2026-04-16 19:48:42 -03:00: ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
+2026-04-16 19:49:05 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:49:05 -03:00:   code: 'PGRST205',
+2026-04-16 19:49:05 -03:00:   details: null,
+2026-04-16 19:49:05 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:49:05 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:49:05 -03:00: }
+2026-04-16 19:49:06 -03:00: [2026-04-16T22:49:06.121Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:49:38 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:49:38 -03:00:   code: 'PGRST205',
+2026-04-16 19:49:38 -03:00:   details: null,
+2026-04-16 19:49:38 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:49:38 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:49:38 -03:00: }
+2026-04-16 19:49:39 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:49:39 -03:00:   code: 'PGRST205',
+2026-04-16 19:49:39 -03:00:   details: null,
+2026-04-16 19:49:39 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:49:39 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:49:39 -03:00: }
+2026-04-16 19:49:39 -03:00: [2026-04-16T22:49:39.143Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:49:39 -03:00: [2026-04-16T22:49:39.400Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:49:40 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:49:40 -03:00:   code: 'PGRST205',
+2026-04-16 19:49:40 -03:00:   details: null,
+2026-04-16 19:49:40 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:49:40 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:49:40 -03:00: }
+2026-04-16 19:49:40 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:49:40 -03:00:   code: 'PGRST205',
+2026-04-16 19:49:40 -03:00:   details: null,
+2026-04-16 19:49:40 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:49:40 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:49:40 -03:00: }
+2026-04-16 19:49:40 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:49:40 -03:00:   code: 'PGRST205',
+2026-04-16 19:49:40 -03:00:   details: null,
+2026-04-16 19:49:40 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:49:40 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:49:40 -03:00: }
+2026-04-16 19:49:40 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:49:40 -03:00:   code: 'PGRST205',
+2026-04-16 19:49:40 -03:00:   details: null,
+2026-04-16 19:49:40 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:49:40 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:49:40 -03:00: }
+2026-04-16 19:49:40 -03:00: [2026-04-16T22:49:40.629Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:49:40 -03:00: [2026-04-16T22:49:40.630Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:49:40 -03:00: [2026-04-16T22:49:40.736Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:49:40 -03:00: [2026-04-16T22:49:40.746Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:49:41 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:49:41 -03:00:   code: 'PGRST205',
+2026-04-16 19:49:41 -03:00:   details: null,
+2026-04-16 19:49:41 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:49:41 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:49:41 -03:00: }
+2026-04-16 19:49:41 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:49:41 -03:00:   code: 'PGRST205',
+2026-04-16 19:49:41 -03:00:   details: null,
+2026-04-16 19:49:41 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:49:41 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:49:41 -03:00: }
+2026-04-16 19:49:41 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:49:41 -03:00:   code: 'PGRST205',
+2026-04-16 19:49:41 -03:00:   details: null,
+2026-04-16 19:49:41 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:49:41 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:49:41 -03:00: }
+2026-04-16 19:49:41 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:49:41 -03:00:   code: 'PGRST205',
+2026-04-16 19:49:41 -03:00:   details: null,
+2026-04-16 19:49:41 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:49:41 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:49:41 -03:00: }
+2026-04-16 19:49:41 -03:00: [2026-04-16T22:49:41.398Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:49:41 -03:00: [2026-04-16T22:49:41.417Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:49:41 -03:00: [2026-04-16T22:49:41.485Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:49:41 -03:00: [2026-04-16T22:49:41.515Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:49:43 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:49:43 -03:00:   code: 'PGRST205',
+2026-04-16 19:49:43 -03:00:   details: null,
+2026-04-16 19:49:43 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:49:43 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:49:43 -03:00: }
+2026-04-16 19:49:43 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:49:43 -03:00:   code: 'PGRST205',
+2026-04-16 19:49:43 -03:00:   details: null,
+2026-04-16 19:49:43 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:49:43 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:49:43 -03:00: }
+2026-04-16 19:49:43 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:49:43 -03:00:   code: 'PGRST205',
+2026-04-16 19:49:43 -03:00:   details: null,
+2026-04-16 19:49:43 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:49:43 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:49:43 -03:00: }
+2026-04-16 19:49:43 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:49:43 -03:00:   code: 'PGRST205',
+2026-04-16 19:49:43 -03:00:   details: null,
+2026-04-16 19:49:43 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:49:43 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:49:43 -03:00: }
+2026-04-16 19:49:43 -03:00: [2026-04-16T22:49:43.288Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:49:43 -03:00: [2026-04-16T22:49:43.478Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:49:43 -03:00: [2026-04-16T22:49:43.500Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:49:43 -03:00: [2026-04-16T22:49:43.501Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:49:43 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:49:43 -03:00:   code: 'PGRST205',
+2026-04-16 19:49:43 -03:00:   details: null,
+2026-04-16 19:49:43 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:49:43 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:49:43 -03:00: }
+2026-04-16 19:49:44 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:49:44 -03:00:   code: 'PGRST205',
+2026-04-16 19:49:44 -03:00:   details: null,
+2026-04-16 19:49:44 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:49:44 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:49:44 -03:00: }
+2026-04-16 19:49:44 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:49:44 -03:00:   code: 'PGRST205',
+2026-04-16 19:49:44 -03:00:   details: null,
+2026-04-16 19:49:44 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:49:44 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:49:44 -03:00: }
+2026-04-16 19:49:44 -03:00: [2026-04-16T22:49:44.058Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:49:44 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:49:44 -03:00:   code: 'PGRST205',
+2026-04-16 19:49:44 -03:00:   details: null,
+2026-04-16 19:49:44 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:49:44 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:49:44 -03:00: }
+2026-04-16 19:49:44 -03:00: [2026-04-16T22:49:44.287Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:49:44 -03:00: [2026-04-16T22:49:44.325Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:49:44 -03:00: [2026-04-16T22:49:44.357Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:49:49 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:49:49 -03:00:   code: 'PGRST205',
+2026-04-16 19:49:49 -03:00:   details: null,
+2026-04-16 19:49:49 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:49:49 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:49:49 -03:00: }
+2026-04-16 19:49:49 -03:00: [2026-04-16T22:49:49.515Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:50:25 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:50:25 -03:00:   code: 'PGRST205',
+2026-04-16 19:50:25 -03:00:   details: null,
+2026-04-16 19:50:25 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:50:25 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:50:25 -03:00: }
+2026-04-16 19:50:25 -03:00: [2026-04-16T22:50:25.556Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:50:26 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:50:26 -03:00:   code: 'PGRST205',
+2026-04-16 19:50:26 -03:00:   details: null,
+2026-04-16 19:50:26 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:50:26 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:50:26 -03:00: }
+2026-04-16 19:50:26 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:50:26 -03:00:   code: 'PGRST205',
+2026-04-16 19:50:26 -03:00:   details: null,
+2026-04-16 19:50:26 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:50:26 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:50:26 -03:00: }
+2026-04-16 19:50:27 -03:00: [2026-04-16T22:50:27.049Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:50:27 -03:00: [2026-04-16T22:50:27.061Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:50:27 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:50:27 -03:00:   code: 'PGRST205',
+2026-04-16 19:50:27 -03:00:   details: null,
+2026-04-16 19:50:27 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:50:27 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:50:27 -03:00: }
+2026-04-16 19:50:27 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:50:27 -03:00:   code: 'PGRST205',
+2026-04-16 19:50:27 -03:00:   details: null,
+2026-04-16 19:50:27 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:50:27 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:50:27 -03:00: }
+2026-04-16 19:50:27 -03:00: [2026-04-16T22:50:27.363Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:50:27 -03:00: [2026-04-16T22:50:27.394Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:50:27 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:50:27 -03:00:   code: 'PGRST205',
+2026-04-16 19:50:27 -03:00:   details: null,
+2026-04-16 19:50:27 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:50:27 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:50:27 -03:00: }
+2026-04-16 19:50:28 -03:00: [2026-04-16T22:50:28.014Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:50:28 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:50:28 -03:00:   code: 'PGRST205',
+2026-04-16 19:50:28 -03:00:   details: null,
+2026-04-16 19:50:28 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:50:28 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:50:28 -03:00: }
+2026-04-16 19:50:28 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:50:28 -03:00:   code: 'PGRST205',
+2026-04-16 19:50:28 -03:00:   details: null,
+2026-04-16 19:50:28 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:50:28 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:50:28 -03:00: }
+2026-04-16 19:50:28 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:50:28 -03:00:   code: 'PGRST205',
+2026-04-16 19:50:28 -03:00:   details: null,
+2026-04-16 19:50:28 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:50:28 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:50:28 -03:00: }
+2026-04-16 19:50:28 -03:00: [2026-04-16T22:50:28.526Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:50:28 -03:00: [2026-04-16T22:50:28.538Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:50:28 -03:00: [2026-04-16T22:50:28.588Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:51:00 -03:00: Failed to write security_log to DB: {
+2026-04-16 19:51:00 -03:00:   code: 'PGRST205',
+2026-04-16 19:51:00 -03:00:   details: null,
+2026-04-16 19:51:00 -03:00:   hint: 'Perhaps you meant the table \'public.mora_logs\'',
+2026-04-16 19:51:00 -03:00:   message: 'Could not find the table \'public.security_logs\' in the schema cache'
+2026-04-16 19:51:00 -03:00: }
+2026-04-16 19:51:00 -03:00: [2026-04-16T22:51:00.374Z] [ERROR] Error blocking IP {"error":"[object Object]"}
+2026-04-16 19:51:26 -03:00: ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
