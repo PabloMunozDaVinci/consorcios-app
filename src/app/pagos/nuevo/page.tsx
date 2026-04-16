@@ -8,16 +8,21 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
-// Generar lista de meses (últimos 12 meses)
+// Generar lista de meses (desde enero 2025 hasta el actual)
 function getMesesOptions() {
   const meses: { value: string; label: string }[] = [];
   const now = new Date();
-  for (let i = 0; i < 12; i++) {
-    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const value = date.toISOString().slice(0, 7); // YYYY-MM
-    const label = date.toLocaleDateString('es-AR', { year: 'numeric', month: 'long' }).replace(/^\w/, c => c.toUpperCase());
-    meses.push({ value, label });
+  const startDate = new Date(2025, 0, 1); // Enero 2025
+  
+  // Iterar desde 2025 hasta ahora
+  const current = new Date(now.getFullYear(), now.getMonth(), 1);
+  while (current >= startDate) {
+    const value = current.toISOString().slice(0, 7); // YYYY-MM
+    const label = current.toLocaleDateString('es-AR', { year: 'numeric', month: 'long' }).replace(/^\w/, c => c.toUpperCase());
+    meses.unshift({ value, label }); // Agregar al inicio (más viejo primero)
+    current.setMonth(current.getMonth() - 1);
   }
+  
   return meses;
 }
 

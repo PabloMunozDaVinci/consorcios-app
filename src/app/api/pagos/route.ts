@@ -35,13 +35,16 @@ export async function POST(request: Request) {
     
     const propietario_id = propietarios?.[0]?.id || null;
     
+    // Convertir "YYYY-MM" a fecha completa "YYYY-MM-01"
+    const mesCompleto = `${mes_pagado}-01`;
+    
     const { data, error } = await supabase
       .from('pagos')
       .insert({
         unidad_id,
         propietario_id,
         monto: parseFloat(monto),
-        mes_pagado,
+        mes_pagado: mesCompleto,
         fecha_pago: new Date().toISOString().split('T')[0],
         medio_pago: medio_pago || 'transferencia',
         nro_comprobante: nro_comprobante || null,
