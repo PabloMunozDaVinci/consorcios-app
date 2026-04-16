@@ -4328,3 +4328,6 @@
 2026-04-16 19:51:00 -03:00: [2026-04-16T22:51:00.374Z] [ERROR] Error blocking IP {"error":"[object Object]"}
 2026-04-16 19:51:26 -03:00: ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
 2026-04-16 19:53:45 -03:00: ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
+2026-04-16 20:10:36 -03:00: ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
+2026-04-16 20:11:16 -03:00: ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
+2026-04-16 20:13:57 -03:00: ⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.

@@ -7,6 +7,7 @@
 // - Security logging
 // - Security headers
 // =============================================================================
+// NOTE: Set DISABLE_AUTH=true in .env.local to bypass auth for testing
 
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
@@ -133,6 +134,11 @@ function checkRateLimit(ip: string, isAuthEndpoint: boolean): { allowed: boolean
 // =============================================================================
 
 export async function middleware(request: NextRequest) {
+  // Skip ALL security checks if DISABLE_AUTH=true (for testing)
+  if (process.env.DISABLE_AUTH === 'true') {
+    return NextResponse.next();
+  }
+  
   const ip = getClientIP(request);
   const pathname = request.nextUrl.pathname;
   const userAgent = getUserAgent(request);
