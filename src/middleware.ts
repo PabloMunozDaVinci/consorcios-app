@@ -134,7 +134,7 @@ function checkRateLimit(ip: string, isAuthEndpoint: boolean): { allowed: boolean
 // =============================================================================
 
 export async function middleware(request: NextRequest) {
-  // Skip ALL security checks if DISABLE_AUTH=true (for testing)
+  // SKIP TODO:Security if disable_AUTH=true OR si las tablas no existen
   if (process.env.DISABLE_AUTH === 'true') {
     return NextResponse.next();
   }
@@ -279,7 +279,7 @@ function addSecurityHeaders(response: NextResponse) {
     "style-src 'self' 'unsafe-inline'; " +
     "img-src 'self' data: https:; " +
     "font-src 'self'; " +
-    "connect-src 'self' https://*.supabase.co https://*.resend.dev; " +
+    "connect-src 'self' https://*.supabase.co https://*.resend.dev https://api.ipify.org https://ipapi.co; " +
     "frame-ancestors 'none'; " +
     "form-action 'self';"
   );

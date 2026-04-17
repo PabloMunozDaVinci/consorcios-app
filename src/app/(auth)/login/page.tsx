@@ -1,16 +1,13 @@
 // =============================================================================
-// PAGE: Login - Authentication
+// PAGE: Login - Authentication (Simplified for testing)
 // =============================================================================
 'use client';
 
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Building2, Mail, Lock, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { Building2, Mail, Lock, Loader2, AlertCircle, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import { createSupabaseClient } from '@/lib/supabase';
-import { logLoginSuccess, logLoginFailed, logIPBlocked } from '@/lib/security/logger';
-import { getGeoFromIP as getClientIP } from '@/lib/geolocation';
-import { isIPBlocked, blockIP } from '@/lib/security/blocklist';
 
 const supabase = createSupabaseClient();
 
@@ -23,55 +20,51 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  console.log('[LOGIN] Component mounted, email:', email);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    console.log('[LOGIN] Submit clicked, email:', email);
+    
     setLoading(true);
     setError(null);
 
     try {
-      // Get client IP for logging
-      const ip = await getClientIPAsync();
+      console.log('[LOGIN] Attempting login to Supabase...');
       
-      // Check if IP is blocked before attempting login
-      const blocked = await isIPBlocked(ip);
-      if (blocked) {
-        setError('Tu IP está bloqueada. Intenta más tarde.');
-        setLoading(false);
-        return;
-      }
-
-      const { error: authError, data } = await supabase.auth.signInWithPassword({
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
+      console.log('[LOGIN] Supabase response:', { data, authError });
+
       if (authError) {
-        // Log failed login
-        await logLoginFailed(email, ip, authError.message);
-        
-        // Check if it's a "invalid login credentials" error
-        if (authError.message.toLowerCase().includes('invalid login credentials')) {
-          setError('Email o contraseña incorrectos');
-        } else {
-          setError(authError.message);
-        }
-        
+        console.log('[LOGIN] Auth error:', authError.message);
+        setError(authError.message);
         setLoading(false);
         return;
       }
 
-      // Log successful login
       if (data?.session) {
-        await logLoginSuccess(email, ip);
+        console.log('[LOGIN] Login successful! Session:', data.session);
+        setSuccess(true);
+        
+        // Small delay to show success state
+        setTimeout(() => {
+          router.push(redirect);
+          router.refresh();
+        }, 1000);
+      } else {
+        setError('No se recibió sesión. Probá de nuevo.');
+        setLoading(false);
       }
-
-      // Login successful - redirect
-      router.push(redirect);
-      router.refresh();
     } catch (err) {
-      setError('Error de conexión');
+      console.error('[LOGIN] Catch error:', err);
+      setError('Error de conexión: ' + String(err));
       setLoading(false);
     }
   }
@@ -88,11 +81,22 @@ export default function LoginPage() {
           <p className="text-gray-500 mt-1">Ingresá a tu cuenta</p>
         </div>
 
+        {/* Success */}
+        {success && (
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl text-green-800 flex items-center gap-3">
+            <CheckCircle className="w-5 h-5" />
+            <p className="font-medium">¡Login exitoso! Redirigiendo...</p>
+          </div>
+        )}
+
         {/* Error */}
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-800 flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 flex-shrink-0" />
-            <p className="text-sm">{error}</p>
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-800 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium">Error</p>
+              <p className="text-sm mt-1">{error}</p>
+            </div>
           </div>
         )}
 
@@ -109,7 +113,10 @@ export default function LoginPage() {
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  console.log('[LOGIN] Email changed:', e.target.value);
+                  setEmail(e.target.value);
+                }}
                 required
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="tu@email.com"
@@ -129,7 +136,10 @@ export default function LoginPage() {
                 id="password"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  console.log('[LOGIN] Password changed, length:', e.target.value.length);
+                  setPassword(e.target.value);
+                }}
                 required
                 className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="••••••••"
@@ -154,42 +164,28 @@ export default function LoginPage() {
             {loading ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                Ingresando...
+                Verificando...
               </>
             ) : (
               'Ingresar'
             )}
           </button>
-
-          {/* Forgot password */}
-          <div className="text-center">
-            <Link href="/recuperar-password" className="text-sm text-gray-500 hover:text-gray-700">
-              ¿Olvidaste tu contraseña?
-            </Link>
-          </div>
         </form>
+
+        {/* Forgot password */}
+        <div className="text-center mt-4">
+          <Link href="/recuperar-password" className="text-sm text-gray-500 hover:text-gray-700">
+            ¿Olvidaste tu contraseña?
+          </Link>
+        </div>
 
         {/* Register info */}
         <div className="mt-6 p-4 bg-gray-50 rounded-xl text-center">
           <p className="text-sm text-gray-600">
-            El registro está gestionado por el administrador. Contactalo para crear tu cuenta.
+            ¿No tenés cuenta? Contactá al administrador.
           </p>
-          <Link href="/register" className="text-sm text-blue-600 hover:underline mt-2 block">
-            Más información
-          </Link>
         </div>
       </div>
     </div>
   );
-}
-
-// Helper to get IP from client side
-async function getClientIPAsync(): Promise<string> {
-  try {
-    const response = await fetch('https://api.ipify.org?format=json');
-    const data = await response.json();
-    return data.ip;
-  } catch {
-    return 'unknown';
-  }
 }
