@@ -279,7 +279,7 @@ function addSecurityHeaders(response: NextResponse) {
     "style-src 'self' 'unsafe-inline'; " +
     "img-src 'self' data: https:; " +
     "font-src 'self'; " +
-    "connect-src 'self' https://*.supabase.co https://*.resend.dev https://api.ipify.org https://ipapi.co; " +
+    "connect-src 'self' http://localhost:* https://*.supabase.co https://*.resend.dev https://api.ipify.org https://ipapi.co; " +
     "frame-ancestors 'none'; " +
     "form-action 'self';"
   );
