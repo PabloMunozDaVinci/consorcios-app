@@ -53,11 +53,11 @@ export default function LoginPage() {
         console.log('[LOGIN] Login successful! Session:', data.session);
         setSuccess(true);
         
-        // Small delay to show success state
+        // Use window.location for reliable redirect
         setTimeout(() => {
-          router.push(redirect);
-          router.refresh();
-        }, 1000);
+          console.log('[LOGIN] Redirecting to:', redirect);
+          window.location.href = redirect;
+        }, 1500);
       } else {
         setError('No se recibió sesión. Probá de nuevo.');
         setLoading(false);
