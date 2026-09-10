@@ -42,17 +42,14 @@ export default function NuevaUnidadPage() {
   useEffect(() => {
     async function fetchEdificios() {
       try {
-        console.log('[DEBUG] Fetching edificios...');
         const response = await fetch('/api/edificios');
-        console.log('[DEBUG] Response status:', response.status);
-        
+
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
         }
-        
+
         const result = await response.json();
-        console.log('[DEBUG] Result:', result);
-        
+
         if (!result.success) {
           setError(result.error || 'Error al cargar edificios');
           return;
@@ -60,7 +57,6 @@ export default function NuevaUnidadPage() {
         
         if (!result.data || result.data.length === 0) {
           // No hay edificios - está bien, mostrar el estado vacío
-          console.log('[DEBUG] No hay edificios');
           setEdificios([]);
           return;
         }
@@ -78,9 +74,7 @@ export default function NuevaUnidadPage() {
           }
         });
         setConsorciosUnicos(consorciosMap);
-        console.log('[DEBUG] Consorcios loaded:', consorciosMap.size);
       } catch (err) {
-        console.error('[ERROR] Fetch error:', err);
         setError('Error al cargar los edificios: ' + (err instanceof Error ? err.message : String(err)));
       } finally {
         setLoadingEdificios(false);

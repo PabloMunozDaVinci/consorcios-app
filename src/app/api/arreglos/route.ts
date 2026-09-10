@@ -10,7 +10,6 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { titulo, descripcion, unidad_id, prioridad, presupuesto, es_area_comun } = body;
     
-    logger.debug('Create Arreglo request', body);
     
     if (!titulo) {
       return Response.json({ 

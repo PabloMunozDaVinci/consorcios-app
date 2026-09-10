@@ -51,7 +51,6 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { nombre, direccion, pisos, unidades_por_piso, consortium_id } = body;
     
-    logger.debug('Create Edificio request', body);
     
     if (!nombre || !consortium_id) {
       return Response.json({ 

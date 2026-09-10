@@ -10,7 +10,6 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { unidad_id, monto, mes_pagado, medio_pago, nro_comprobante } = body;
     
-    logger.debug('Create Pago request', body);
     
     // Validación granular
     const errores: string[] = [];

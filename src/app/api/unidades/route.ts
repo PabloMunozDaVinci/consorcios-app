@@ -70,7 +70,6 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { building_id, numero, piso, tipo, coeficiente, es_especial, habitada } = body;
     
-    logger.debug('Create Unidad request', body);
     
     if (!building_id || !numero) {
       return Response.json({ 

@@ -9,9 +9,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { nombre, direccion, ciudad, email_admin, telefono } = body;
-    
-    logger.debug('Create Consortium request', body);
-    
+
     if (!nombre || !direccion) {
       return Response.json({ 
         success: false, 

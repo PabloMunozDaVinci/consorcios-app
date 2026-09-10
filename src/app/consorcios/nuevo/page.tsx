@@ -18,8 +18,7 @@ export default function NuevoConsorcioPage() {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    
-    console.log('=== START SUBMIT ===');
+
     setIsLoading(true);
     setError(null);
     setSuccess(false);
@@ -46,19 +45,13 @@ export default function NuevoConsorcioPage() {
         }
       }
 
-      console.log('Data:', data);
-
-      console.log('Fetching /api/consorcios...');
-      
       const response = await fetch('/api/consorcios', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
 
-      console.log('Response status:', response.status);
       const result = await response.json();
-      console.log('Result:', JSON.stringify(result));
 
       if (result.success) {
         setSuccess(true);
@@ -71,8 +64,7 @@ export default function NuevoConsorcioPage() {
         setError(result.error || 'Error al crear el consorcio');
         setIsLoading(false);
       }
-    } catch (err) {
-      console.error('Exception:', err);
+    } catch {
       setError('Error de conexión. Intenta de nuevo.');
       setIsLoading(false);
     }
