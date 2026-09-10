@@ -17,8 +17,8 @@ Se autodescribe como **"Zero-Cost Stack"**: Supabase free tier + Resend + PM2 en
 
 Es un **prototipo funcional a medias, no apto para producción**. Concretamente:
 
-- **Ningún usuario se puede crear** contra el schema commiteado (ver §6.1 y §6.2) → la app no se puede bootstrappear.
-- **El motor de mora no corre**: `get_saldo_deudor()` tira error en la primera línea útil (§6.3).
+- ~~**Ningún usuario se puede crear** contra el schema commiteado → la app no se puede bootstrappear.~~ Corregido en bloque 0 (migración 001 + `create-propietario`); pendiente de verificar contra la DB viva.
+- ~~**El motor de mora no corre**: `get_saldo_deudor()` tira error en la primera línea útil.~~ Corregido en bloque 0 (migración 001); pendiente de verificar contra la DB viva.
 - **El login no persiste sesión donde el middleware la busca** → o el middleware rechaza todo, o corre con `DISABLE_AUTH=true` y **no hay autenticación en absoluto** (§5).
 - **Toda la capa de datos usa la `service_role` key**, que saltea RLS. Las policies del schema son decorativas (§4.3).
 - **`sanitize.ts` (295 líneas, todos los schemas zod) es código muerto**: se importa, nunca se llama (§7).
@@ -200,8 +200,9 @@ Las API routes aceptan `POST` con JSON sin verificar `Origin`/`Referer`. Con aut
 ### 🟡 6.14 — Server Actions sin control de acceso
 `admin/mora/page.tsx` expone un Server Action inline que corre `evaluarYEnviarMora()` sin ningún chequeo de rol. Cuando se descomenten los emails de Resend, ese action **manda cartas de intimación legal a los propietarios**. Debe verificar admin adentro del action, no confiar en el middleware.
 
-### 🟡 6.15 — Funciones `SECURITY DEFINER` sin `search_path`
-`get_saldo_deudor` y `evaluar_y_actualizar_mora` corren como owner sin `SET search_path = public, pg_temp`. Es el vector clásico de secuestro de search_path en Postgres.
+### 🟡 6.15 — ~~Funciones `SECURITY DEFINER` sin `search_path`~~ · RESUELTO (bloque 0)
+~~`get_saldo_deudor` y `evaluar_y_actualizar_mora` corren como owner sin `SET search_path = public, pg_temp`. Es el vector clásico de secuestro de search_path en Postgres.~~
+**Resuelto** en `supabase/migrations/001_bloque0_arranque.sql`: ambas funciones se recrean con `SET search_path = public, pg_temp`.
 
 ### ⚪ 6.16 — Logging de bodies completos
 `logger.debug('Create Consortium request', body)` y similares en 6 rutas. En dev loguea DNI, emails y teléfonos a stdout → a los logs de PM2 en disco, sin rotación configurada.
@@ -222,45 +223,37 @@ Las API routes aceptan `POST` con JSON sin verificar `Origin`/`Referer`. Con aut
 
 **Verificados empíricamente** levantando PostgreSQL 16 local, aplicando `supabase/schema.sql` con stubs de `auth.users`/`auth.uid()`, y ejecutando las llamadas que hace la app.
 
-### 🔴 7.1 — `get_saldo_deudor()` explota en runtime
-```
-ERROR: function min(integer, integer) does not exist
-LINE 1: v_meses_atrasados := MIN(12, EXTRACT(MONTH FROM AGE(...)));
-CONTEXT: PL/pgSQL function get_saldo_deudor(uuid) line 16
-```
-En PostgreSQL `MIN()` es una función **de agregación**, no acepta dos escalares. Va `LEAST(12, ...)`. La función se crea sin error (plpgsql no resuelve el cuerpo hasta la primera ejecución), por eso pasó desapercibido. **Todo el módulo de mora está muerto**: `evaluarYEnviarMora()` la llama por RPC y siempre falla.
+### 🔴 7.1 — ~~`get_saldo_deudor()` explota en runtime~~ · RESUELTO (bloque 0)
+~~`MIN(12, EXTRACT(MONTH FROM AGE(...)))` → `function min(integer, integer) does not exist`. En PostgreSQL `MIN()` es agregación, no acepta dos escalares.~~
+**Resuelto** en `migrations/001_bloque0_arranque.sql`: `LEAST` en vez de `MIN` (el tope de 12 se aplica sólo a la fórmula del monto). Falta verificar contra la DB viva.
 
-### 🔴 7.2 — No se puede crear ningún administrador
-```
-ERROR: null value in column "unidad_id" of relation "propietarios" violates not-null constraint
-```
-`create-admin` inserta a propósito sin `unidad_id` (es su marca de "admin"), pero el schema la declara `NOT NULL`. El endpoint devuelve 500 siempre. **Sin admin, la app no se puede bootstrappear.**
+### 🔴 7.2 — ~~No se puede crear ningún administrador~~ · RESUELTO (bloque 0)
+~~`create-admin` inserta sin `unidad_id` (marca de admin) pero la columna es `NOT NULL` → 500 siempre.~~
+**Resuelto** en `migrations/001_bloque0_arranque.sql`: `unidad_id` pasa a nullable y la constraint `UNIQUE (unidad_id)` se reemplaza por un índice único parcial `WHERE unidad_id IS NOT NULL`. Falta verificar 200 contra la DB viva.
 
-### 🔴 7.3 — No se puede crear ningún propietario
-`create-propietario/route.ts:161` hace `.select('id, numero, pisos')` sobre `unidades`. La columna es `piso`, no `pisos`:
-```
-ERROR: column "pisos" does not exist  HINT: Perhaps you meant "unidades.piso"
-```
-Falla en el paso 1 → corta antes de crear nada.
+### 🔴 7.3 — ~~No se puede crear ningún propietario~~ · RESUELTO (bloque 0)
+~~`create-propietario` hace `.select('id, numero, pisos')` sobre `unidades`; la columna es `piso`.~~
+**Resuelto**: `src/app/api/auth/create-propietario/route.ts` ahora consulta `piso`. Falta verificar 200 contra la DB viva.
 
-### 🟠 7.4 — El cálculo de meses de deuda ignora los años
-```sql
-EXTRACT(MONTH FROM AGE(CURRENT_DATE, v_ultimo_mes))
-```
-`AGE()` devuelve un intervalo `años-meses-días`; `EXTRACT(MONTH …)` toma **solo el componente de meses**. Verificado: una deuda de **14 meses se calcula como 2**. Efecto directo: un deudor de más de un año queda clasificado como `deudor` en vez de `juicio_en_curso` — o sea, el escalamiento legal nunca dispara para los peores casos. **Fix:** `EXTRACT(YEAR FROM age)*12 + EXTRACT(MONTH FROM age)`.
+### 🟠 7.4 — ~~El cálculo de meses de deuda ignora los años~~ · RESUELTO (bloque 0)
+~~`EXTRACT(MONTH FROM AGE(...))` toma sólo el componente de meses: 14 meses se calculaba como 2, y el escalamiento legal nunca disparaba para los peores casos.~~
+**Resuelto** en `migrations/001_bloque0_arranque.sql`: `EXTRACT(YEAR FROM edad)*12 + EXTRACT(MONTH FROM edad)`. `meses_atrasados` devuelve el conteo real (sin tope). Falta verificar contra la DB viva.
 
 ### 🟠 7.5 — Monto de expensa hardcodeado
 `schema.sql:182`: `v_monto_total := v_meses_atrasados * 150000 * 1.20;`
 Toda unidad debe lo mismo, sin importar el coeficiente, el edificio ni el período. El 1.20 (¿interés? ¿IVA?) no está documentado. Es el corazón del negocio y es una constante mágica.
 
-### 🟠 7.6 — `getMoraStats()` consulta una columna que no existe
-`actions/consorcios.ts:584`: `.from('unidades').select('estado_mora')` → `column "estado_mora" does not exist`. Devuelve error siempre. La página `admin/mora` lo esquiva con `// Stats simuladas hasta que conectemos a DB` y muestra ceros hardcodeados.
+### 🟠 7.6 — ~~`getMoraStats()` consulta una columna que no existe~~ · RESUELTO (bloque 0)
+~~`.from('unidades').select('estado_mora')` → `column "estado_mora" does not exist`. `admin/mora` mostraba ceros hardcodeados ("Stats simuladas").~~
+**Resuelto**: `getMoraStats()` deriva el estado de cada unidad del `mora_logs` más reciente; `admin/mora/page.tsx` la consume (render dinámico).
 
-### 🟠 7.7 — `evaluarYEnviarMora()` cuenta emails que nunca manda
-El bloque de Resend está comentado (`actions/mora.ts:746-757`) pero `emailsEnviados++` está **afuera** del comentario. El endpoint reporta "N emails enviados" con Resend desactivado. Además la query previa pide `edificio_id`, columna inexistente.
+### 🟠 7.7 — ~~`evaluarYEnviarMora()` cuenta emails que nunca manda~~ · RESUELTO (bloque 0)
+~~El bloque de Resend está comentado pero `emailsEnviados++` está afuera del comentario. Además la query previa pedía `edificio_id`, columna inexistente.~~
+**Resuelto**: el `++` suelto se eliminó (`emailsEnviados` queda en 0 mientras Resend esté deshabilitado); la query usa `building_id`.
 
-### 🟡 7.8 — Typo `aptoo_carta` en el mapa de estados
-`actions/mora.ts:634` define `aptoo_carta` (doble o) en `ESTADOS_MORA` y en `getEmailTemplate()`, pero el enum de la DB y la lógica de decisión usan `apto_carta`. El template de "carta documento" **nunca se selecciona**: cae siempre al fallback `deudor`. Un deudor de 5 meses recibe el mail suave en lugar de la intimación.
+### 🟡 7.8 — ~~Typo `aptoo_carta` en el mapa de estados~~ · RESUELTO (bloque 0)
+~~`aptoo_carta` (doble o) en `ESTADOS_MORA` y `getEmailTemplate()`; el template de carta documento nunca se seleccionaba.~~
+**Resuelto**: `aptoo_carta` → `apto_carta` en `src/actions/mora.ts`.
 
 ### 🟡 7.9 — El seed duplica filas en cada ejecución
 `ON CONFLICT DO NOTHING` sin constraint único sobre `consorcios(nombre)` no hace nada. Verificado: dos corridas → dos "Consorcio Torre Centro".
