@@ -164,3 +164,14 @@ export interface PaginatedResponse<T> {
   pageSize: number;
   hasMore: boolean;
 }
+
+// ---- Mora ----
+
+export interface MoraStats {
+  total: number;
+  al_dia: number;
+  deudor: number;
+  apto_carta: number;
+  inicio_juicio: number;
+  juicio_en_curso: number;
+}

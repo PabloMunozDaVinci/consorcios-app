@@ -6,7 +6,7 @@
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
 import { revalidatePath } from 'next/cache';
-import type { ActionResponse } from '@/types';
+import type { ActionResponse, EstadoMora, MoraStats } from '@/types';
 
 // =============================================================================
 // CONSORCIOS
@@ -573,29 +573,55 @@ export async function updateArregloEstado(
 // MORA
 // =============================================================================
 
-export async function getMoraStats(): Promise<ActionResponse<any>> {
+export async function getMoraStats(): Promise<ActionResponse<MoraStats>> {
   try {
     const supabase = createSupabaseAdmin();
-    
-    // Contar unidades por estado de mora
-    const { data, error } = await supabase
+
+    // Total de unidades.
+    const { count: totalUnidades, error: errorUnidades } = await supabase
       .from('unidades')
-      .select('estado_mora');
-    
-    if (error) {
-      logger.error('Error getMoraStats:', error);
-      return { success: false, error: error.message };
+      .select('*', { count: 'exact', head: true });
+
+    if (errorUnidades) {
+      logger.error('Error getMoraStats (unidades):', errorUnidades);
+      return { success: false, error: errorUnidades.message };
     }
-    
-    const stats = {
-      total: data?.length || 0,
-      al_dia: data?.filter(u => u.estado_mora === 'al_dia').length || 0,
-      deudor: data?.filter(u => u.estado_mora === 'deudor').length || 0,
-      apta_carta: data?.filter(u => u.estado_mora === 'apto_carta').length || 0,
-      inicio_juicio: data?.filter(u => u.estado_mora === 'inicio_juicio').length || 0,
-      juicio_en_curso: data?.filter(u => u.estado_mora === 'juicio_en_curso').length || 0,
+
+    // El estado de mora de una unidad es el estado_nuevo de su último mora_logs.
+    // La columna unidades.estado_mora no existe en el schema.
+    const { data: logs, error: errorLogs } = await supabase
+      .from('mora_logs')
+      .select('unidad_id, estado_nuevo, created_at')
+      .order('created_at', { ascending: false });
+
+    if (errorLogs) {
+      logger.error('Error getMoraStats (mora_logs):', errorLogs);
+      return { success: false, error: errorLogs.message };
+    }
+
+    const ultimoEstado = new Map<string, EstadoMora>();
+    for (const log of logs ?? []) {
+      if (!ultimoEstado.has(log.unidad_id)) {
+        ultimoEstado.set(log.unidad_id, log.estado_nuevo as EstadoMora);
+      }
+    }
+
+    const estados = [...ultimoEstado.values()];
+    const total = totalUnidades ?? 0;
+    const contar = (estado: EstadoMora) => estados.filter((e) => e === estado).length;
+
+    // Unidades sin ningún registro de mora se consideran al día.
+    const sinRegistro = Math.max(0, total - estados.length);
+
+    const stats: MoraStats = {
+      total,
+      al_dia: contar('al_dia') + sinRegistro,
+      deudor: contar('deudor'),
+      apto_carta: contar('apto_carta'),
+      inicio_juicio: contar('inicio_juicio'),
+      juicio_en_curso: contar('juicio_en_curso'),
     };
-    
+
     return { success: true, data: stats };
   } catch (error) {
     logger.error('Error getMoraStats:', error);
