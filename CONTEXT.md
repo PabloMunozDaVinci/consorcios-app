@@ -17,8 +17,8 @@ Se autodescribe como **"Zero-Cost Stack"**: Supabase free tier + Resend + PM2 en
 
 Es un **prototipo funcional a medias, no apto para producción**. Concretamente:
 
-- ~~**Ningún usuario se puede crear** contra el schema commiteado → la app no se puede bootstrappear.~~ Corregido en bloque 0 (migración 001 + `create-propietario`); pendiente de verificar contra la DB viva.
-- ~~**El motor de mora no corre**: `get_saldo_deudor()` tira error en la primera línea útil.~~ Corregido en bloque 0 (migración 001); pendiente de verificar contra la DB viva.
+- ~~**Ningún usuario se puede crear** contra el schema commiteado → la app no se puede bootstrappear.~~ Corregido y **verificado** contra la DB viva (PG17): `create-admin` y `create-propietario` devuelven 200.
+- ~~**El motor de mora no corre**: `get_saldo_deudor()` tira error en la primera línea útil.~~ Corregido y **verificado** contra la DB viva (PG17): `get_saldo_deudor` corre sin error.
 - **El login no persiste sesión donde el middleware la busca** → o el middleware rechaza todo, o corre con `DISABLE_AUTH=true` y **no hay autenticación en absoluto** (§5).
 - **Toda la capa de datos usa la `service_role` key**, que saltea RLS. Las policies del schema son decorativas (§4.3).
 - **`sanitize.ts` (295 líneas, todos los schemas zod) es código muerto**: se importa, nunca se llama (§7).
@@ -220,19 +220,19 @@ Las API routes aceptan `POST` con JSON sin verificar `Origin`/`Referer`. Con aut
 
 ### 🔴 7.1 — ~~`get_saldo_deudor()` explota en runtime~~ · RESUELTO (bloque 0)
 ~~`MIN(12, EXTRACT(MONTH FROM AGE(...)))` → `function min(integer, integer) does not exist`. En PostgreSQL `MIN()` es agregación, no acepta dos escalares.~~
-**Resuelto** en `migrations/001_bloque0_arranque.sql`: `LEAST` en vez de `MIN` (el tope de 12 se aplica sólo a la fórmula del monto). Falta verificar contra la DB viva.
+**Resuelto y verificado** (PG17): `LEAST` en vez de `MIN` (tope de 12 sólo en el monto). Antes: `ERROR: function min(integer, integer) does not exist`. Ahora corre.
 
 ### 🔴 7.2 — ~~No se puede crear ningún administrador~~ · RESUELTO (bloque 0)
 ~~`create-admin` inserta sin `unidad_id` (marca de admin) pero la columna es `NOT NULL` → 500 siempre.~~
-**Resuelto** en `migrations/001_bloque0_arranque.sql`: `unidad_id` pasa a nullable y la constraint `UNIQUE (unidad_id)` se reemplaza por un índice único parcial `WHERE unidad_id IS NOT NULL`. Falta verificar 200 contra la DB viva.
+**Resuelto y verificado** (PG17): `unidad_id` nullable, índice único parcial `ux_propietario_por_unidad`. `POST /api/auth/create-admin` → 200.
 
 ### 🔴 7.3 — ~~No se puede crear ningún propietario~~ · RESUELTO (bloque 0)
 ~~`create-propietario` hace `.select('id, numero, pisos')` sobre `unidades`; la columna es `piso`.~~
-**Resuelto**: `src/app/api/auth/create-propietario/route.ts` ahora consulta `piso`. Falta verificar 200 contra la DB viva.
+**Resuelto y verificado** (PG17): consulta `piso`; `POST /api/auth/create-propietario` → 200.
 
 ### 🟠 7.4 — ~~El cálculo de meses de deuda ignora los años~~ · RESUELTO (bloque 0)
 ~~`EXTRACT(MONTH FROM AGE(...))` toma sólo el componente de meses: 14 meses se calculaba como 2, y el escalamiento legal nunca disparaba para los peores casos.~~
-**Resuelto** en `migrations/001_bloque0_arranque.sql`: `EXTRACT(YEAR FROM edad)*12 + EXTRACT(MONTH FROM edad)`. `meses_atrasados` devuelve el conteo real (sin tope). Falta verificar contra la DB viva.
+**Resuelto y verificado** (PG17): `EXTRACT(YEAR FROM edad)*12 + EXTRACT(MONTH FROM edad)`. Deuda de 14 meses: fórmula vieja daba 2, ahora da 14.
 
 ### 🟠 7.5 — Monto de expensa hardcodeado
 `schema.sql:182`: `v_monto_total := v_meses_atrasados * 150000 * 1.20;`

@@ -2,16 +2,39 @@
 
 > Lista viva. Cada bloque agrega lo suyo. No borrar ítems: tacharlos (`~~...~~`) cuando se cierren.
 
-## Verificación que no se pudo hacer en el entorno de trabajo
+## Conexión a Supabase (resuelto)
 
-El entorno de Claude Code no tiene PostgreSQL ni Docker, así que **ninguna migración SQL fue probada**. Hay que aplicarlas contra la DB viva (Supabase / PG16) y confirmar:
+- El sandbox **sólo tiene salida HTTPS (443)** — no llega al puerto 5432 de la DB.
+  `psql` / `supabase db push` no funcionan desde acá.
+- **Vía que sí funciona**: `npx supabase db query --linked` (ejecuta SQL vía Management API,
+  con el token de `supabase login`). El proyecto está linkeado (`jbikxksdignshfgnbipi`, **Postgres 17**).
+- `.env.local` tiene credenciales reales (gitignored). Contiene la password de DB y el
+  service_role → no commitear nunca.
+- La CLI de Supabase no está en la allowlist de permisos → cada `npx supabase ...` pide
+  confirmación (o lo frena el classifier para subcomandos tipo `api-keys`).
 
-### Bloque 0
-- [ ] Aplicar `supabase/migrations/001_bloque0_arranque.sql` contra la DB.
-- [ ] `POST /api/auth/create-admin` con el secreto correcto → **200**.
-- [ ] `POST /api/auth/create-propietario` con unidad válida → **200**.
-- [ ] `SELECT * FROM get_saldo_deudor('<uuid>')` → una fila, sin error, con `meses_atrasados = 14` para una deuda de 14 meses.
-- [ ] `admin/mora` muestra los conteos reales (no ceros).
+## Verificación Bloque 0 — ✅ HECHA contra la DB viva (PG17)
+
+- [x] `001_bloque0_arranque.sql` aplicada (vía `supabase db query --linked -f`).
+- [x] `unidad_id` nullable = YES; constraint vieja eliminada; índice parcial `ux_propietario_por_unidad` creado.
+- [x] `get_saldo_deudor` y `evaluar_y_actualizar_mora` con `search_path=public, pg_temp`.
+- [x] **Antes**: `get_saldo_deudor(...)` → `ERROR: function min(integer, integer) does not exist` (confirmado).
+- [x] **Después**: sin error. Deuda de 14 meses → `meses_atrasados = 14` (fórmula vieja daba 2, verificado); `monto_total = 2.160.000` (tope de 12 en el monto).
+- [x] `POST /api/auth/create-admin` con secreto correcto → **200**; con `admin-secret-123` → **401**.
+- [x] `POST /api/auth/create-propietario` con unidad válida → **200**.
+- [x] `tempPassword` generado por `crypto.randomBytes` (16 chars + `!`).
+- Datos de prueba creados y **borrados** (0 propietarios, 0 pagos al final).
+- [ ] Falta ver `admin/mora` con datos reales en el browser (no hay mora_logs todavía).
+
+## ⚠️ Divergencia schema.sql ↔ DB viva encontrada (nueva, no estaba en la auditoría)
+
+- **`pagos.propietario_id` es `NOT NULL` en la DB viva** (en `schema.sql` es nullable
+  con `ON DELETE SET NULL`). `src/app/api/pagos/route.ts` dice "permitir el pago aunque
+  no haya propietario" e inserta `propietario_id: undefined` → ese INSERT **rompe** con
+  NOT NULL si la unidad no tiene propietario. Revisar en Bloque 2 (correctitud) o antes.
+- La DB no tiene tabla `supabase_migrations.schema_migrations` (nunca se usó `supabase db push`;
+  el schema se aplicó a mano). Las migraciones del repo son idempotentes, así que
+  re-aplicarlas es seguro, pero no hay tracking. Evaluar si vale la pena inicializarlo.
 
 ## Decisiones tomadas que conviene revisar
 
@@ -23,7 +46,7 @@ El entorno de Claude Code no tiene PostgreSQL ni Docker, así que **ninguna migr
 ## Setup / infraestructura
 
 - **git**: no había identidad configurada. Se seteó *solo en este repo*: `user.email=pmunoz@ewwoconsulting.com`, `user.name=pmunoz`. Cambiar si corresponde.
-- **`.env.local`**: creado con valores **placeholder** (está en `.gitignore`) para poder correr `build`/`tsc`/`lint`. Reemplazar por credenciales reales antes de usar la app.
+- **`.env.local`**: ahora tiene credenciales **reales** del proyecto `jbikxksdignshfgnbipi` (gitignored). Incluye password de DB y service_role → nunca commitear.
 - **`npm run lint`**: arrancó con 51 errores preexistentes (archivos de bloques 3). El Bloque 0 no introdujo errores nuevos. El verde total llega recién en el Bloque 3.
 - Archivos sin trackear que no tocó Claude: `PROMPT-claude-code.md`, `SETUP.md`, `setup.sh`.
 
