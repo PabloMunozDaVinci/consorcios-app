@@ -5,16 +5,15 @@
 // Usa email invitation - el usuario configura su password desde el email
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
+import { getAdminCreateSecret, secretMatches, generateTempPassword } from '@/lib/admin-secret';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { email, nombre, sendInvitation, secret } = body;
 
-    // Secret para proteger el endpoint
-    const ADMIN_SECRET = process.env.ADMIN_CREATE_SECRET || 'admin-secret-123';
-    
-    if (secret !== ADMIN_SECRET) {
+    // Secret para proteger el endpoint (sin fallback; comparación en tiempo constante)
+    if (!secretMatches(secret, getAdminCreateSecret())) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -91,19 +90,9 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     logger.error('Exception creating admin', err);
-    return Response.json({ 
-      success: false, 
-      error: err instanceof Error ? err.message : 'Error interno' 
+    return Response.json({
+      success: false,
+      error: err instanceof Error ? err.message : 'Error interno'
     }, { status: 500 });
   }
-}
-
-// Generar password temporal
-function generateTempPassword(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-  let password = '';
-  for (let i = 0; i < 12; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return password + '!';
 }
