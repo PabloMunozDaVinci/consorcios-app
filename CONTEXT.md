@@ -143,31 +143,24 @@ middleware.ts   →  verifyJWT() busca la cookie 'sb-access-token'
 
 Severidad: 🔴 crítico · 🟠 alto · 🟡 medio · ⚪ bajo
 
-### 🔴 6.1 — Secreto de creación de admin hardcodeado
-`api/auth/create-admin/route.ts:16` y `create-propietario/route.ts:135`:
-```ts
-const ADMIN_SECRET = process.env.ADMIN_CREATE_SECRET || 'admin-secret-123';
-```
-Si la env var no está seteada (y no hay `.env.example` que lo recuerde), **cualquiera con el código a la vista crea un administrador del sistema**. El repo estuvo público. **Fix:** fallar el arranque si falta la variable; nunca un default.
+### 🔴 6.1 — ~~Secreto de creación de admin hardcodeado~~ · RESUELTO (bloque 1)
+~~`const ADMIN_SECRET = process.env.ADMIN_CREATE_SECRET || 'admin-secret-123';` en create-admin y create-propietario.~~
+**Resuelto**: `src/lib/admin-secret.ts` — sin fallback (falla si falta o < 16 chars), comparación con `sha256 + timingSafeEqual`, y `generateTempPassword` con `crypto.randomBytes` (unificada).
 
 ### 🔴 6.2 — Toda la capa de datos con `service_role`, sin filtro por usuario
 Los 10 route handlers y los 3 archivos de `actions/` usan `createSupabaseAdmin()`. Ninguno verifica identidad ni pertenencia. La única defensa es el middleware — que es bypasseable de tres formas (§6.3, §6.4, §5).
 
-### 🔴 6.3 — `DISABLE_AUTH=true` desactiva absolutamente todo
-`middleware.ts:151`. Un flag de env en la primera línea del middleware apaga auth, rate limiting, geo-block, blocklist **y los security headers**. En un `.env` de producción mal copiado, la app queda completamente abierta. **Fix:** que solo funcione si `NODE_ENV !== 'production'`.
+### 🔴 6.3 — ~~`DISABLE_AUTH=true` desactiva absolutamente todo~~ · RESUELTO (bloque 1)
+~~Un flag de env en la primera línea del middleware apaga auth, rate limiting, geo-block, blocklist y los security headers.~~
+**Resuelto** en `src/proxy.ts`: `DISABLE_AUTH` se ignora en producción (con warning); los security headers se aplican siempre.
 
-### 🔴 6.4 — El `matcher` del middleware deja pasar todo lo que tenga un punto
-```ts
-matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\..*$).*)']
-```
-`.*\..*$` excluye del middleware **cualquier path que contenga un punto**. Combinado con `isPublicRoute()` que devuelve `true` para `pathname.includes('.ico')`, es superficie de bypass innecesaria. **Fix:** matcher explícito por prefijo (`/api/:path*`, etc.).
+### 🔴 6.4 — ~~El `matcher` del middleware deja pasar todo lo que tenga un punto~~ · RESUELTO (bloque 1)
+~~`.*\..*$` excluía del middleware cualquier path con un punto; `isPublicRoute()` devolvía `true` para `.ico`.~~
+**Resuelto** en `src/proxy.ts`: matcher explícito por prefijo (`/api`, `/admin`, `/consorcios`, `/edificios`, `/unidades`, `/pagos`, `/mantenimiento`); se sacó el `includes('.ico')`.
 
-### 🔴 6.5 — Open redirect (y posible XSS) en el login
-`redirectToLogin()` (`lib/auth.ts:178`) mete la URL completa en `?redirect=`, y `login/page.tsx:1600` hace:
-```ts
-window.location.href = redirect;   // redirect viene de searchParams, sin validar
-```
-`/login?redirect=https://sitio-falso.com` redirige a cualquier lado tras un login exitoso — vector de phishing perfecto para robar la siguiente credencial. `javascript:` en ese slot también es plausible. **Fix:** aceptar solo paths que empiecen con `/` y no con `//`.
+### 🔴 6.5 — ~~Open redirect (y posible XSS) en el login~~ · RESUELTO (bloque 1)
+~~`redirectToLogin()` metía la URL completa en `?redirect=` y el login hacía `window.location.href = redirect` sin validar.~~
+**Resuelto**: `src/lib/safe-redirect.ts` (sólo paths internos); usado en `login/page.tsx`, y `redirectToLogin` ya sólo guarda `path+query`.
 
 ### 🟠 6.6 — Geo-blocking que no bloquea nada
 `geolocation-mw.ts:760` devuelve, para toda IP desconocida:
@@ -204,11 +197,13 @@ Las API routes aceptan `POST` con JSON sin verificar `Origin`/`Referer`. Con aut
 ~~`get_saldo_deudor` y `evaluar_y_actualizar_mora` corren como owner sin `SET search_path = public, pg_temp`. Es el vector clásico de secuestro de search_path en Postgres.~~
 **Resuelto** en `supabase/migrations/001_bloque0_arranque.sql`: ambas funciones se recrean con `SET search_path = public, pg_temp`.
 
-### ⚪ 6.16 — Logging de bodies completos
-`logger.debug('Create Consortium request', body)` y similares en 6 rutas. En dev loguea DNI, emails y teléfonos a stdout → a los logs de PM2 en disco, sin rotación configurada.
+### ⚪ 6.16 — ~~Logging de bodies completos~~ · RESUELTO (bloque 1)
+~~`logger.debug('Create Consortium request', body)` y similares en 6 rutas: DNI, emails y teléfonos a stdout.~~
+**Resuelto**: se sacó `logger.debug('... request', body)` de las rutas consorcios, pagos, arreglos, unidades y edificios.
 
-### ⚪ 6.17 — `console.log` de credenciales en el login
-`login/page.tsx:1681`: `console.log('[LOGIN] Password changed, length:', ...)` y `console.log('[LOGIN] Supabase response:', { data, authError })` — **imprime el objeto session completo, con el access token, en la consola del browser**. 21 `console.log` en total en `src/`.
+### ⚪ 6.17 — ~~`console.log` de credenciales en el login~~ · RESUELTO (bloque 1)
+~~El login imprimía el objeto session completo (con access token) y el largo de la contraseña. 21 `console.log` en `src/`.~~
+**Resuelto**: sin `console.log` en `src/` (login, y los de debug en consorcios/nuevo, unidades/nueva, pagos/nuevo).
 
 ### ✅ Lo que sí está bien
 - **No hay secretos commiteados.** Revisé todo el historial (17 commits): ningún `.env`, ninguna key de Supabase, ningún token de Resend. El `.gitignore` cubre `.env*` desde el commit inicial. Haber hecho el repo público no filtró credenciales.
