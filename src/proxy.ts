@@ -1,5 +1,5 @@
 // =============================================================================
-// MIDDLEWARE: Full Security Protection
+// PROXY (ex middleware, Next 16): Full Security Protection
 // =============================================================================
 // - JWT verification
 // - Geolocation blocking (Argentina only)
@@ -69,34 +69,35 @@ function isPublicRoute(pathname: string): boolean {
   // Public routes - no auth required
   const publicRoutes = [
     '/login',
-    '/logout', 
+    '/logout',
     '/register',
     '/recuperar-password',
     '/api/health',
-    '/_next',
-    '/favicon.ico',
   ];
-  
+
   // Exact match
   if (publicRoutes.includes(pathname)) {
     return true;
   }
-  
-  // Auth public endpoints
-  if (pathname === '/api/auth/reset-password') {
+
+  // Endpoints protegidos por su propio secreto (no por sesión):
+  // - reset-password: no enumerable, público por diseño.
+  // - create-admin / create-propietario: gateados por ADMIN_CREATE_SECRET
+  //   (create-admin es el bootstrap, no puede requerir una sesión previa).
+  const secretGatedEndpoints = [
+    '/api/auth/reset-password',
+    '/api/auth/create-admin',
+    '/api/auth/create-propietario',
+  ];
+  if (secretGatedEndpoints.includes(pathname)) {
     return true;
   }
-  
-  // Next.js internals
-  if (pathname.startsWith('/_next/') || pathname.includes('.ico')) {
-    return true;
-  }
-  
+
   return false;
 }
 
 function isAuthRoute(pathname: string): boolean {
-  return pathname === '/api/auth/reset-password';
+  return pathname.startsWith('/api/auth/');
 }
 
 // Rate limiter
@@ -133,20 +134,25 @@ function checkRateLimit(ip: string, isAuthEndpoint: boolean): { allowed: boolean
 // MAIN MIDDLEWARE
 // =============================================================================
 
-export async function middleware(request: NextRequest) {
-  // SKIP TODO:Security if disable_AUTH=true OR si las tablas no existen
-  if (process.env.DISABLE_AUTH === 'true') {
-    return NextResponse.next();
-  }
-  
+export async function proxy(request: NextRequest) {
   const ip = getClientIP(request);
   const pathname = request.nextUrl.pathname;
   const userAgent = getUserAgent(request);
-  
-  // 1. Add security headers (always)
+
+  // 1. Add security headers (SIEMPRE, incluso con DISABLE_AUTH)
   const response = NextResponse.next();
   addSecurityHeaders(response);
-  
+
+  // DISABLE_AUTH: sólo tiene efecto fuera de producción. En prod se ignora
+  // y se loguea un warning (evita que un .env mal copiado abra la app entera).
+  if (process.env.DISABLE_AUTH === 'true') {
+    if (process.env.NODE_ENV === 'production') {
+      console.warn('[middleware] DISABLE_AUTH=true está IGNORADO en producción.');
+    } else {
+      return response;
+    }
+  }
+
   // 2. Public routes - skip auth checks
   if (isPublicRoute(pathname)) {
     return response;
@@ -242,12 +248,19 @@ export async function middleware(request: NextRequest) {
       }
     }
     
-    // Success - add user info to headers for downstream use
-    request.headers.set('x-user-id', authResult.session?.userId || '');
-    request.headers.set('x-user-email', authResult.session?.email || '');
-    request.headers.set('x-is-admin', String(authResult.session?.isAdmin || false));
+    // Success - propagar identidad a las rutas downstream.
+    // request.headers.set(...) NO llega a las rutas: hay que reconstruir
+    // la request con NextResponse.next({ request: { headers } }).
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set('x-user-id', authResult.session?.userId || '');
+    requestHeaders.set('x-user-email', authResult.session?.email || '');
+    requestHeaders.set('x-is-admin', String(authResult.session?.isAdmin || false));
+
+    const authedResponse = NextResponse.next({ request: { headers: requestHeaders } });
+    addSecurityHeaders(authedResponse);
+    return authedResponse;
   }
-  
+
   return response;
 }
 
@@ -296,14 +309,15 @@ function addSecurityHeaders(response: NextResponse) {
 // =============================================================================
 
 export const config = {
+  // Matcher explícito por prefijo. Cubre la API y las rutas de páginas
+  // protegidas; deja fuera assets, _next, y las páginas públicas (/, /login...).
   matcher: [
-    /*
-     * Match all request paths except for:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon files)
-     * - public files
-     */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\..*$).*)',
+    '/api/:path*',
+    '/admin/:path*',
+    '/consorcios/:path*',
+    '/edificios/:path*',
+    '/unidades/:path*',
+    '/pagos/:path*',
+    '/mantenimiento/:path*',
   ],
 };
