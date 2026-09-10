@@ -47,7 +47,7 @@ export async function POST(request: Request) {
     // 1. Verificar que la unidad existe
     const { data: unidad, error: unidadError } = await supabase
       .from('unidades')
-      .select('id, numero, pisos')
+      .select('id, numero, piso')
       .eq('id', unidad_id)
       .single();
 
