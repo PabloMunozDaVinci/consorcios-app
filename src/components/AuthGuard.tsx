@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { createSupabaseClient } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { Loader2 } from 'lucide-react';
 
 interface AuthGuardProps {
@@ -15,9 +15,8 @@ interface AuthGuardProps {
   requireAdmin?: boolean;
 }
 
-const supabase = createSupabaseClient();
-
 export function AuthGuard({ children, requireAdmin = false }: AuthGuardProps) {
+  const supabase = createClient();
   const router = useRouter();
   const pathname = usePathname();
   const [loading, setLoading] = useState(true);

@@ -7,12 +7,11 @@ import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Building2, Mail, Lock, Loader2, AlertCircle, Eye, EyeOff, CheckCircle } from 'lucide-react';
-import { createSupabaseClient } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { safeRedirectPath } from '@/lib/safe-redirect';
 
-const supabase = createSupabaseClient();
-
 export default function LoginPage() {
+  const supabase = createClient();
   const searchParams = useSearchParams();
   // Sólo paths internos: /login?redirect=https://phishing.com cae a '/'.
   const redirect = safeRedirectPath(searchParams.get('redirect'), '/');

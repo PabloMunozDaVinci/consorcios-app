@@ -14,17 +14,14 @@ import type { NextRequest } from 'next/server';
 
 import { isAllowedCountryMiddleware, getCountryCodeMiddleware } from '@/lib/geolocation-mw';
 import { isIPBlocked, blockIP, getTodayAttempts } from '@/lib/security/blocklist';
-import { 
-  logSecurityEvent, 
-  logLoginFailed, 
+import {
   logIPBlocked,
   logJWTInvalid,
   logRateLimitExceeded,
-  logUnauthorizedAccess,
-  logSuspiciousRequest
+  logSuspiciousRequest,
 } from '@/lib/security/logger';
-import { verifyJWT, verifyAdmin, requiresAuth, requiresAdmin, redirectToLogin } from '@/lib/auth';
-import { containsSQLInjection, containsXSS } from '@/lib/sanitize';
+import { redirectToLogin } from '@/lib/auth';
+import { updateSession } from '@/lib/supabase/proxy';
 
 // Configuration
 const CONFIG = {
@@ -212,56 +209,29 @@ export async function proxy(request: NextRequest) {
     );
   }
   
-  // 7. BLOCKED LOGIN ATTEMPTS - Track failed login attempts
-  if (pathname === '/api/auth/reset-password' && request.method === 'POST') {
-    // This is handled at the API level
-  }
-  
-  // 8. AUTH VERIFICATION - JWT check for protected routes
-  if (!isPublicRoute(pathname)) {
-    const authResult = await verifyJWT(request);
-    
-    if (!authResult.success) {
-      // Log the failed auth
-      await logJWTInvalid(ip, authResult.error || 'invalid_token', userAgent);
-      
-      // Redirect to login for page routes
-      if (pathname.startsWith('/api/')) {
-        return NextResponse.json(
-          { error: 'No autorizado' },
-          { status: 401 }
-        );
-      }
-      
-      // For pages, redirect to login
-      return redirectToLogin(request);
-    }
-    
-    // 9. ADMIN VERIFICATION - Some routes require admin
-    if (requiresAdmin(pathname)) {
-      if (!authResult.session?.isAdmin) {
-        await logUnauthorizedAccess(ip, pathname, userAgent);
-        return NextResponse.json(
-          { error: 'Acceso de administrador requerido' },
-          { status: 403 }
-        );
-      }
-    }
-    
-    // Success - propagar identidad a las rutas downstream.
-    // request.headers.set(...) NO llega a las rutas: hay que reconstruir
-    // la request con NextResponse.next({ request: { headers } }).
-    const requestHeaders = new Headers(request.headers);
-    requestHeaders.set('x-user-id', authResult.session?.userId || '');
-    requestHeaders.set('x-user-email', authResult.session?.email || '');
-    requestHeaders.set('x-is-admin', String(authResult.session?.isAdmin || false));
+  // 7. AUTH - refresh de sesión (@supabase/ssr) + chequeo optimista.
+  //    La autorización fina (rol, tenant) va en cada route handler / action.
+  const { response: sessionResponse, user } = await updateSession(request);
 
-    const authedResponse = NextResponse.next({ request: { headers: requestHeaders } });
-    addSecurityHeaders(authedResponse);
-    return authedResponse;
+  if (!user) {
+    await logJWTInvalid(ip, 'no_session', userAgent);
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+    return redirectToLogin(request);
   }
 
-  return response;
+  // Autenticado: propagar identidad a las rutas downstream. request.headers.set()
+  // no llega: hay que reconstruir la request con NextResponse.next({ request: { headers } }).
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-user-id', user.id);
+  requestHeaders.set('x-user-email', user.email ?? '');
+
+  const authedResponse = NextResponse.next({ request: { headers: requestHeaders } });
+  // Conservar las cookies de sesión que updateSession pudo haber refrescado.
+  sessionResponse.cookies.getAll().forEach((cookie) => authedResponse.cookies.set(cookie));
+  addSecurityHeaders(authedResponse);
+  return authedResponse;
 }
 
 // =============================================================================

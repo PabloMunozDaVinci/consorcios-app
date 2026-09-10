@@ -6,11 +6,11 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Building2, Mail, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
-import { createSupabaseClient } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 
 export default function RecuperarPasswordPage() {
   const router = useRouter();
-  const supabase = createSupabaseClient();
+  const supabase = createClient();
   
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);

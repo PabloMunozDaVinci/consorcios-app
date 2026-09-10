@@ -6,14 +6,13 @@
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Header } from '@/components/Header';
-import { createSupabaseClient } from '@/lib/supabase';
-
-const supabase = createSupabaseClient();
+import { createClient } from '@/lib/supabase/client';
 
 // Rutas donde NO se muestra el header
 const NO_HEADER_ROUTES = ['/login', '/register', '/logout', '/recuperar-password'];
 
 export function ConditionalLayout({ children }: { children: React.ReactNode }) {
+  const supabase = createClient();
   const pathname = usePathname();
   const [showHeader, setShowHeader] = useState(false);
   const [loading, setLoading] = useState(true);

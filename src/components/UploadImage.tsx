@@ -7,7 +7,7 @@
 
 import { useState, useRef } from 'react';
 import { Upload, X, Loader2, Check } from 'lucide-react';
-import { createSupabaseClient } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 
 interface UploadImageProps {
   bucket: string;
@@ -116,7 +116,7 @@ export function UploadImage({
       setIsUploading(true);
       setProgress(60);
 
-      const supabase = createSupabaseClient();
+      const supabase = createClient();
       if (!supabase) {
         setError('Supabase no configurado');
         return;

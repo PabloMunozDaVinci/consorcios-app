@@ -4,7 +4,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createSupabaseClient } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 
 export interface AuthUser {
@@ -40,9 +40,8 @@ export interface UseUserReturn {
   signOut: () => Promise<void>;
 }
 
-const supabase = createSupabaseClient();
-
 export function useUser(): UseUserReturn {
+  const supabase = createClient();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [propietario, setPropietario] = useState<PropietarioWithUnidad | null>(null);
   const [loading, setLoading] = useState(true);
