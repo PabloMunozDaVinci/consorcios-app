@@ -24,7 +24,7 @@ function getSupabase() {
 const ESTADOS_MORA = {
   al_dia: { siguiente: 'deudor', meses_min: 0 },
   deudor: { siguiente: 'apto_carta', meses_min: 3 },
-  aptoo_carta: { siguiente: 'inicio_juicio', meses_min: 6 },
+  apto_carta: { siguiente: 'inicio_juicio', meses_min: 6 },
   inicio_juicio: { siguiente: 'juicio_en_curso', meses_min: 12 },
 } as const;
 
@@ -46,10 +46,10 @@ function getEmailTemplate(
       <p>Tu unidad <strong>${unidad.numero}</strong> tiene expensas pendientes.</p>
       <ul><li>Meses: <strong>${meses}</strong></li><li>Monto: <strong>$${monto.toLocaleString('es-AR')}</strong></li></ul>
     `,
-    aptoo_carta: `
+    apto_carta: `
       <h2>⚠️ Carta Documento - Expensas Vencidas</h2>
       <p>Hola <strong>${propietario.nombre}</strong>,</p>
-      <p>Tu unidad accumulate <strong>${meses} meses</strong> de deuda.</p>
+      <p>Tu unidad acumula <strong>${meses} meses</strong> de deuda.</p>
       <p>Se ha iniciado el proceso de Carta Documento.</p>
     `,
     inicio_juicio: `
@@ -72,7 +72,10 @@ export async function evaluarYEnviarMora(): Promise<{
   errores: string[];
 }> {
   const errores: string[] = [];
-  let emailsEnviados = 0;
+  // Resend está deshabilitado (bloque comentado más abajo): no se manda ningún
+  // email, así que el contador queda en 0. Al habilitar Resend, volver a `let`
+  // e incrementarlo dentro de ese bloque.
+  const emailsEnviados = 0;
   let procesadas = 0;
 
   try {
@@ -80,7 +83,7 @@ export async function evaluarYEnviarMora(): Promise<{
 
     const { data: unidades } = await supabase
       .from('unidades')
-      .select('id, numero, edificio_id')
+      .select('id, numero, building_id')
       .order('id');
 
     for (const unidad of unidades || []) {
@@ -148,7 +151,7 @@ export async function evaluarYEnviarMora(): Promise<{
           emailsEnviados++;
         }
         */
-        emailsEnviados++;
+        // emailsEnviados sólo se incrementa dentro del bloque Resend de arriba.
         procesadas++;
       } catch (innerError) {
         errores.push(`Error procesando unidad ${unidad.id}: ${innerError}`);
