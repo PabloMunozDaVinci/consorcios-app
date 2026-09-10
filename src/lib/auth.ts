@@ -174,8 +174,10 @@ export function requiresAdmin(pathname: string): boolean {
  * Create redirect response to login
  */
 export function redirectToLogin(request: Request): Response {
+  const requested = new URL(request.url);
   const url = new URL('/login', request.url);
-  url.searchParams.set('redirect', request.url);
-  
+  // Sólo el path interno, nunca la URL absoluta (evita open redirect al volver).
+  url.searchParams.set('redirect', requested.pathname + requested.search);
+
   return Response.redirect(url);
 }

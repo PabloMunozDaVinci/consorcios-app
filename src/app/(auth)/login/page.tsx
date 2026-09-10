@@ -4,18 +4,19 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Building2, Mail, Lock, Loader2, AlertCircle, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import { createSupabaseClient } from '@/lib/supabase';
+import { safeRedirectPath } from '@/lib/safe-redirect';
 
 const supabase = createSupabaseClient();
 
 export default function LoginPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get('redirect') || '/';
-  
+  // Sólo paths internos: /login?redirect=https://phishing.com cae a '/'.
+  const redirect = safeRedirectPath(searchParams.get('redirect'), '/');
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -23,39 +24,27 @@ export default function LoginPage() {
   const [success, setSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  console.log('[LOGIN] Component mounted, email:', email);
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    console.log('[LOGIN] Submit clicked, email:', email);
-    
+
     setLoading(true);
     setError(null);
 
     try {
-      console.log('[LOGIN] Attempting login to Supabase...');
-      
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      console.log('[LOGIN] Supabase response:', { data, authError });
-
       if (authError) {
-        console.log('[LOGIN] Auth error:', authError.message);
         setError(authError.message);
         setLoading(false);
         return;
       }
 
       if (data?.session) {
-        console.log('[LOGIN] Login successful! Session:', data.session);
         setSuccess(true);
-        
-        // Use window.location for reliable redirect
         setTimeout(() => {
-          console.log('[LOGIN] Redirecting to:', redirect);
           window.location.href = redirect;
         }, 1500);
       } else {
@@ -63,7 +52,6 @@ export default function LoginPage() {
         setLoading(false);
       }
     } catch (err) {
-      console.error('[LOGIN] Catch error:', err);
       setError('Error de conexión: ' + String(err));
       setLoading(false);
     }
@@ -113,10 +101,7 @@ export default function LoginPage() {
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => {
-                  console.log('[LOGIN] Email changed:', e.target.value);
-                  setEmail(e.target.value);
-                }}
+                onChange={(e) => setEmail(e.target.value)}
                 required
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="tu@email.com"
@@ -136,10 +121,7 @@ export default function LoginPage() {
                 id="password"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => {
-                  console.log('[LOGIN] Password changed, length:', e.target.value.length);
-                  setPassword(e.target.value);
-                }}
+                onChange={(e) => setPassword(e.target.value)}
                 required
                 className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="••••••••"
