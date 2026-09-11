@@ -5,11 +5,11 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createSupabaseClient } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 
 export default function LogoutPage() {
   const router = useRouter();
-  const supabase = createSupabaseClient();
+  const supabase = createClient();
 
   useEffect(() => {
     async function signOut() {

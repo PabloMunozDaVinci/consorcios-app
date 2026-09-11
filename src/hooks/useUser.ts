@@ -1,21 +1,21 @@
 // =============================================================================
-// HOOK: useUser - Get current authenticated user
+// HOOK: useUser - usuario autenticado + rol (desde la tabla `usuarios`)
 // =============================================================================
 'use client';
 
-import { useEffect, useState } from 'react';
-import { createSupabaseClient } from '@/lib/supabase';
-import type { User } from '@supabase/supabase-js';
+import { useCallback, useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
+
+export type Rol = 'super_admin' | 'admin' | 'operador' | 'propietario';
 
 export interface AuthUser {
   id: string;
   email: string;
-  email_confirmed_at?: string;
 }
 
 export interface PropietarioWithUnidad {
   id: string;
-  unidad_id: string;
+  unidad_id: string | null;
   nombre: string;
   apellido: string;
   dni: string;
@@ -25,133 +25,105 @@ export interface PropietarioWithUnidad {
     id: string;
     numero: string;
     piso: number;
-    edificio?: {
-      id: string;
-      nombre: string;
-    };
+    edificio?: { id: string; nombre: string };
   };
 }
 
 export interface UseUserReturn {
   user: AuthUser | null;
+  rol: Rol | null;
+  administradoraId: string | null;
   propietario: PropietarioWithUnidad | null;
   loading: boolean;
   isAdmin: boolean;
   signOut: () => Promise<void>;
 }
 
-const supabase = createSupabaseClient();
+const ROLES_ADMIN: Rol[] = ['super_admin', 'admin'];
 
 export function useUser(): UseUserReturn {
+  const supabase = createClient();
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [rol, setRol] = useState<Rol | null>(null);
+  const [administradoraId, setAdministradoraId] = useState<string | null>(null);
   const [propietario, setPropietario] = useState<PropietarioWithUnidad | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
 
-  const fetchPropietario = async (userId: string) => {
-    const { data: prop } = await supabase
-      .from('propietarios')
-      .select(`
-        id,
-        unidad_id,
-        nombre,
-        apellido,
-        dni,
-        email,
-        telefono,
-        unidades:id
-      `)
-      .eq('auth_user_id', userId)
-      .single();
+  const hydrate = useCallback(
+    async (userId: string) => {
+      const { data: usuario } = await supabase
+        .from('usuarios')
+        .select('rol, administradora_id, propietario_id')
+        .eq('auth_user_id', userId)
+        .eq('activo', true)
+        .maybeSingle();
 
-    if (prop) {
-      // Get unidad details
-      const { data: unidad } = await supabase
-        .from('unidades')
-        .select(`
-          id,
-          numero,
-          piso,
-          edificios:edificios (
-            id,
-            nombre
-          )
-        `)
-        .eq('id', prop.unidad_id)
-        .single();
+      setRol((usuario?.rol as Rol) ?? null);
+      setAdministradoraId(usuario?.administradora_id ?? null);
 
-      setPropietario({
-        ...prop,
-        // @ts-ignore - Supabase relation typing
-        unidad: unidad,
-      } as PropietarioWithUnidad);
-    }
-  };
+      if (usuario?.propietario_id) {
+        const { data: prop } = await supabase
+          .from('propietarios')
+          .select('id, unidad_id, nombre, apellido, dni, email, telefono')
+          .eq('id', usuario.propietario_id)
+          .maybeSingle();
+        setPropietario((prop as PropietarioWithUnidad) ?? null);
+      } else {
+        setPropietario(null);
+      }
+    },
+    [supabase]
+  );
 
   useEffect(() => {
-    const initAuth = async () => {
+    let active = true;
+
+    (async () => {
       try {
-        const {
-          data: { user: sbUser },
-        } = await supabase.auth.getUser();
-
+        const { data: { user: sbUser } } = await supabase.auth.getUser();
+        if (!active) return;
         if (sbUser) {
-          setUser({
-            id: sbUser.id,
-            email: sbUser.email || '',
-            email_confirmed_at: sbUser.email_confirmed_at || undefined,
-          });
-
-          // Check if admin (no auth_user_id linked = admin)
-          const { data: prop } = await supabase
-            .from('propietarios')
-            .select('auth_user_id')
-            .eq('auth_user_id', sbUser.id)
-            .single();
-
-          setIsAdmin(!prop);
-
-          // Fetch propietario data if exists
-          await fetchPropietario(sbUser.id);
+          setUser({ id: sbUser.id, email: sbUser.email ?? '' });
+          await hydrate(sbUser.id);
         }
-      } catch (error) {
-        console.error('Auth error:', error);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
-    };
+    })();
 
-    initAuth();
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_e, session) => {
       if (session?.user) {
-        setUser({
-          id: session.user.id,
-          email: session.user.email || '',
-          email_confirmed_at: session.user.email_confirmed_at || undefined,
-        });
-        await fetchPropietario(session.user.id);
+        setUser({ id: session.user.id, email: session.user.email ?? '' });
+        await hydrate(session.user.id);
       } else {
         setUser(null);
+        setRol(null);
+        setAdministradoraId(null);
         setPropietario(null);
-        setIsAdmin(false);
       }
     });
 
     return () => {
+      active = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [supabase, hydrate]);
 
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
+    setRol(null);
+    setAdministradoraId(null);
     setPropietario(null);
-    setIsAdmin(false);
   };
 
-  return { user, propietario, loading, isAdmin, signOut };
+  return {
+    user,
+    rol,
+    administradoraId,
+    propietario,
+    loading,
+    isAdmin: rol !== null && ROLES_ADMIN.includes(rol),
+    signOut,
+  };
 }

@@ -1,14 +1,17 @@
 // =============================================================================
 // API: Get Consorcios with Edificios and Unidades
 // =============================================================================
-import { createSupabaseAdmin } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/server';
+import { requireUsuario, ROLES_GESTION } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 
 export async function GET() {
   try {
-    const supabase = createSupabaseAdmin();
-    
-    // Get all consorcios with their buildings and units
+    const auth = await requireUsuario(ROLES_GESTION);
+    if (!auth.ok) return auth.response;
+
+    const supabase = await createClient();
+
     const { data: consorcios, error } = await supabase
       .from('consorcios')
       .select(`
@@ -21,21 +24,18 @@ export async function GET() {
         )
       `)
       .order('nombre');
-    
+
     if (error) {
       logger.error('Error fetching consorcios with buildings', error);
-      return Response.json({ 
-        success: false, 
-        error: error.message 
-      }, { status: 500 });
+      return Response.json({ success: false, error: 'No se pudieron obtener los consorcios' }, { status: 500 });
     }
-    
+
     return Response.json({ success: true, data: consorcios });
   } catch (err: unknown) {
     logger.error('Exception fetching consorcios', err);
-    return Response.json({ 
-      success: false, 
-      error: err instanceof Error ? err.message : 'Error interno' 
+    return Response.json({
+      success: false,
+      error: err instanceof Error ? err.message : 'Error interno'
     }, { status: 500 });
   }
 }

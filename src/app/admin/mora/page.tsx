@@ -1,19 +1,33 @@
 // =============================================================================
 // PAGE: Admin Mora - Gestión de Mora
 // =============================================================================
+import { redirect } from 'next/navigation';
 import { Users, Play, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 import { evaluarYEnviarMora } from '@/actions/mora';
+import { getMoraStats } from '@/actions/consorcios';
+import { getUsuario, ROLES_GESTION } from '@/lib/auth';
+import type { MoraStats } from '@/types';
+
+// Las stats se consultan por request (no prerender en build).
+export const dynamic = 'force-dynamic';
+
+const STATS_VACIAS: MoraStats = {
+  total: 0,
+  al_dia: 0,
+  deudor: 0,
+  apto_carta: 0,
+  inicio_juicio: 0,
+  juicio_en_curso: 0,
+};
 
 export default async function MoraPage() {
-  // Stats simuladas hasta que conectemos a DB
-  const stats = {
-    total: 0,
-    al_dia: 0,
-    deudor: 0,
-    apta_carta: 0,
-    inicio_juicio: 0,
-    juicio_en_curso: 0,
-  };
+  const usuario = await getUsuario();
+  if (!usuario || !ROLES_GESTION.includes(usuario.rol)) {
+    redirect('/');
+  }
+
+  const statsResult = await getMoraStats();
+  const stats: MoraStats = statsResult.success && statsResult.data ? statsResult.data : STATS_VACIAS;
 
   return (
     <div className="space-y-6">
@@ -63,7 +77,7 @@ export default async function MoraPage() {
             desc="3-5 meses"
             meses="3-5"
             icon={<AlertTriangle className="w-5 h-5" />}
-            active={stats.apta_carta > 0}
+            active={stats.apto_carta > 0}
           />
           <FlujoStep
             estado="inicio_juicio"
@@ -89,7 +103,7 @@ export default async function MoraPage() {
         <StatCard title="Total Unidades" value={stats.total} />
         <StatCard title="Al Día" value={stats.al_dia} color="green" />
         <StatCard title="Deudor" value={stats.deudor} color="yellow" />
-        <StatCard title="Apto Carta" value={stats.apta_carta} color="orange" />
+        <StatCard title="Apto Carta" value={stats.apto_carta} color="orange" />
         <StatCard title="En Juicio" value={stats.inicio_juicio + stats.juicio_en_curso} color="red" />
       </div>
 

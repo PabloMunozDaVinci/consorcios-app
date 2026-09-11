@@ -49,8 +49,8 @@ export default function NuevoPagoPage() {
         if (result.success && result.data) {
           setUnidades(result.data);
         }
-      } catch (err) {
-        console.error('Error loading unidades:', err);
+      } catch {
+        setError('No se pudieron cargar las unidades');
       } finally {
         setLoadingUnidades(false);
       }
@@ -93,17 +93,14 @@ export default function NuevoPagoPage() {
         nro_comprobante: formData.get('nro_comprobante') as string || undefined,
       };
       
-      console.log('Creating:', data);
-      
       const response = await fetch('/api/pagos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
-      
+
       const result = await response.json();
-      console.log('Result:', result);
-      
+
       if (result.success) {
         setSuccess(true);
         setTimeout(() => router.push('/pagos'), 2000);
@@ -111,8 +108,7 @@ export default function NuevoPagoPage() {
         setError(result.error || 'Error al registrar pago');
         setIsLoading(false);
       }
-    } catch (err) {
-      console.error('Error:', err);
+    } catch {
       setError('Error de conexión');
       setIsLoading(false);
     }

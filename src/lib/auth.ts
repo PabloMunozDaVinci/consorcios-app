@@ -1,181 +1,116 @@
 // =============================================================================
-// LIB: Auth - JWT verification helpers
+// LIB: Auth - helpers de sesión (server-side)
 // =============================================================================
-// Handles JWT verification and session validation
+// La verificación real corre contra Supabase vía @supabase/ssr. El proxy hace
+// el refresh de sesión (chequeo optimista); la autorización fina va en cada
+// route handler / server action con estos helpers.
 
-import { createSupabaseClient, createSupabaseAdmin } from '@/lib/supabase';
-import { logger } from '@/lib/logger';
+import { createClient } from '@/lib/supabase/server';
+import { safeRedirectPath } from '@/lib/safe-redirect';
+import type { User } from '@supabase/supabase-js';
 
 export interface SessionUser {
   userId: string;
   email: string;
-  isAdmin: boolean;
-  expiresAt: number;
 }
 
-export interface AuthResult {
-  success: boolean;
-  session?: SessionUser;
-  error?: string;
+export type Rol = 'super_admin' | 'admin' | 'operador' | 'propietario';
+
+export interface Usuario {
+  id: string;
+  authUserId: string;
+  administradoraId: string;
+  rol: Rol;
+  propietarioId: string | null;
 }
 
 /**
- * Verify JWT token from request
- * Extracts token from Authorization header or cookie
+ * Devuelve el usuario autenticado del request, o null.
+ * getUser() valida el token contra Supabase, no confía en la cookie.
  */
-export async function verifyJWT(request: Request): Promise<AuthResult> {
-  try {
-    // Try to get token from Authorization header
-    let token = request.headers.get('authorization')?.replace('Bearer ', '');
-    
-    // If not in header, try cookie
-    if (!token) {
-      const cookieHeader = request.headers.get('cookie');
-      if (cookieHeader) {
-        const cookies = Object.fromEntries(
-          cookieHeader.split('; ').map(c => c.split('='))
-        );
-        token = cookies['sb-access-token']?.replace(/"/g, '');
-      }
-    }
-    
-    if (!token) {
-      return { success: false, error: 'No token provided' };
-    }
-    
-    const supabase = createSupabaseClient();
-    
-    // Verify the token
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    
-    if (error || !user) {
-      return { success: false, error: error?.message || 'Invalid token' };
-    }
-    
-    // Check if user has admin role (no unidad_id in propietarios table = admin)
-    const adminSupabase = createSupabaseAdmin();
-    const { data: propietario } = await adminSupabase
-      .from('propietarios')
-      .select('unidad_id')
-      .eq('auth_user_id', user.id)
-      .single();
-    
-    const isAdmin = !propietario?.unidad_id;
-    
-    // Check session expiry (Supabase handles this, but we also check the exp claim)
-    const expClaim = user.id; // The user object doesn't have exp, Supabase manages it
-    // We'll use the issued_at and compare with our session timeout
-    
-    return {
-      success: true,
-      session: {
-        userId: user.id,
-        email: user.email || '',
-        isAdmin,
-        expiresAt: Date.now() + 30 * 60 * 1000, // 30 minutes (should match Supabase config)
-      },
-    };
-  } catch (error) {
-    logger.error('JWT verification error', error);
-    return { success: false, error: 'Verification failed' };
-  }
+export async function getCurrentUser(): Promise<User | null> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user;
 }
 
 /**
- * Verify JWT and require admin role
+ * Igual que getCurrentUser pero devuelve el shape mínimo que usan las rutas.
  */
-export async function verifyAdmin(request: Request): Promise<AuthResult> {
-  const result = await verifyJWT(request);
-  
-  if (!result.success) {
-    return result;
-  }
-  
-  if (!result.session?.isAdmin) {
-    return { success: false, error: 'Admin access required' };
-  }
-  
-  return result;
+export async function getSessionUser(): Promise<SessionUser | null> {
+  const user = await getCurrentUser();
+  if (!user) return null;
+  return { userId: user.id, email: user.email ?? '' };
 }
 
 /**
- * Get user from request (for logging)
+ * Fila de `usuarios` del request actual (rol + administradora). null si no hay
+ * sesión o el usuario no tiene fila activa en `usuarios`.
  */
-export function getUserFromRequest(request: Request): { id: string; email: string } | null {
-  // This is a simplified version - actual user comes from JWT verification
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader) return null;
-  
-  // The actual user data comes from Supabase after JWT verification
-  return null;
+export async function getUsuario(): Promise<Usuario | null> {
+  const user = await getCurrentUser();
+  if (!user) return null;
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('usuarios')
+    .select('id, auth_user_id, administradora_id, rol, propietario_id')
+    .eq('auth_user_id', user.id)
+    .eq('activo', true)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    id: data.id,
+    authUserId: data.auth_user_id,
+    administradoraId: data.administradora_id,
+    rol: data.rol,
+    propietarioId: data.propietario_id,
+  };
 }
 
 /**
- * Check if route requires authentication
+ * Para route handlers / server actions: exige sesión + (opcional) uno de los
+ * roles. Devuelve el usuario o una Response lista para retornar.
+ */
+export async function requireUsuario(
+  roles?: Rol[]
+): Promise<{ ok: true; usuario: Usuario } | { ok: false; response: Response }> {
+  const usuario = await getUsuario();
+  if (!usuario) {
+    return { ok: false, response: Response.json({ error: 'No autenticado' }, { status: 401 }) };
+  }
+  if (roles && roles.length > 0 && !roles.includes(usuario.rol)) {
+    return { ok: false, response: Response.json({ error: 'Sin permiso' }, { status: 403 }) };
+  }
+  return { ok: true, usuario };
+}
+
+/** Roles con acceso de gestión (todo lo que no es el portal del propietario). */
+export const ROLES_GESTION: Rol[] = ['super_admin', 'admin', 'operador'];
+
+/**
+ * Rutas de páginas que requieren sesión (el proxy redirige a /login).
+ * Las rutas /api se listan aparte porque devuelven 401, no redirect.
  */
 export function requiresAuth(pathname: string): boolean {
-  // Public routes that don't require auth
-  const publicRoutes = [
-    '/',
-    '/login',
-    '/logout',
-    '/register',
-    '/recuperar-password',
-    '/api/health',
-    '/api/auth/login',
-    '/api/auth/reset-password',
-    '/_next',
-    '/favicon.ico',
-  ];
-  
-  // Check exact match
-  if (publicRoutes.includes(pathname)) {
+  const publicPrefixes = ['/login', '/logout', '/register', '/recuperar-password'];
+  if (pathname === '/') return false;
+  if (publicPrefixes.some((p) => pathname === p || pathname.startsWith(p + '/'))) {
     return false;
   }
-  
-  // Check paths starting with
-  const publicPathPrefixes = [
-    '/api/auth/', // Auth APIs handled separately
-    '/_next/',
-  ];
-  
-  for (const prefix of publicPathPrefixes) {
-    if (pathname.startsWith(prefix)) {
-      return false;
-    }
-  }
-  
-  // All other routes require auth
   return true;
 }
 
 /**
- * Check if route requires admin role
- */
-export function requiresAdmin(pathname: string): boolean {
-  const adminRoutes = [
-    '/api/consorcios',
-    '/api/edificios',
-    '/api/unidades',
-    '/api/auth/create-admin',
-    '/api/auth/create-propietario',
-  ];
-  
-  for (const route of adminRoutes) {
-    if (pathname.startsWith(route)) {
-      return true;
-    }
-  }
-  
-  return false;
-}
-
-/**
- * Create redirect response to login
+ * Crea un redirect a /login preservando SÓLO el path interno de destino.
  */
 export function redirectToLogin(request: Request): Response {
+  const requested = new URL(request.url);
   const url = new URL('/login', request.url);
-  url.searchParams.set('redirect', request.url);
-  
+  url.searchParams.set(
+    'redirect',
+    safeRedirectPath(requested.pathname + requested.search, '/')
+  );
   return Response.redirect(url);
 }

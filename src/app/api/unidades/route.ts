@@ -1,62 +1,57 @@
 // =============================================================================
 // API: Unidades - GET list / POST create
 // =============================================================================
-import { createSupabaseAdmin } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/server';
+import { requireUsuario, ROLES_GESTION } from '@/lib/auth';
+import { createUnidadSchema, validateInput, badRequest } from '@/lib/sanitize';
 import { logger } from '@/lib/logger';
 import { revalidatePath } from 'next/cache';
 
-// GET: List unidades for dropdown
+// GET: List unidades (RLS filtra por tenant)
 export async function GET(request: Request) {
   try {
+    const auth = await requireUsuario(ROLES_GESTION);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const listMode = searchParams.get('list') === 'true';
-    
-    const supabase = createSupabaseAdmin();
-    
+
+    const supabase = await createClient();
+
     if (listMode) {
-      // Get unidades with edificio info
       const { data, error } = await supabase
         .from('unidades')
-        .select(`
-          id,
-          numero,
-          piso,
-          edificios:edificios (
-            id,
-            nombre
-          )
-        `)
+        .select(`id, numero, piso, edificios:edificios (id, nombre)`)
         .order('piso')
         .order('numero');
-      
+
       if (error) {
         logger.error('Error listing unidades', error);
-        return Response.json({ success: false, error: error.message }, { status: 500 });
+        return Response.json({ success: false, error: 'No se pudieron listar las unidades' }, { status: 500 });
       }
-      
-      // @ts-ignore - Supabase relation typing
-      const formatted = (data || []).map((u: any) => ({
+
+      const formatted = (data || []).map((u: Record<string, unknown>) => ({
         id: u.id,
         numero: u.numero,
         piso: u.piso,
-        edificio_nombre: u.edificios?.nombre || 'Sin edificio',
+        edificio_nombre:
+          (u.edificios as { nombre?: string } | null)?.nombre || 'Sin edificio',
       }));
-      
+
       return Response.json({ success: true, data: formatted });
     }
-    
-    // Default: return all unidades
+
     const { data, error } = await supabase
       .from('unidades')
       .select('*')
       .order('piso')
       .order('numero');
-    
+
     if (error) {
       logger.error('Error listing unidades', error);
-      return Response.json({ success: false, error: error.message }, { status: 500 });
+      return Response.json({ success: false, error: 'No se pudieron listar las unidades' }, { status: 500 });
     }
-    
+
     return Response.json({ success: true, data: data || [] });
   } catch (err: unknown) {
     logger.error('Exception listing unidades', err);
@@ -67,20 +62,16 @@ export async function GET(request: Request) {
 // POST: Create Unidad
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { building_id, numero, piso, tipo, coeficiente, es_especial, habitada } = body;
-    
-    logger.debug('Create Unidad request', body);
-    
-    if (!building_id || !numero) {
-      return Response.json({ 
-        success: false, 
-        error: 'building_id y numero son obligatorios' 
-      }, { status: 400 });
-    }
-    
-    const supabase = createSupabaseAdmin();
-    
+    const auth = await requireUsuario(ROLES_GESTION);
+    if (!auth.ok) return auth.response;
+
+    const parsed = validateInput(createUnidadSchema, await request.json());
+    if (!parsed.ok) return badRequest(parsed.errors);
+    const { building_id, numero, piso, tipo, coeficiente, es_especial, habitada } = parsed.data;
+
+    const supabase = await createClient();
+
+    // administradora_id / consorcio_id los pone el trigger desde el edificio.
     const { data, error } = await supabase
       .from('unidades')
       .insert({
@@ -94,30 +85,28 @@ export async function POST(request: Request) {
       })
       .select()
       .single();
-    
+
     if (error) {
       logger.error('Error creating unidad', error);
-      return Response.json({ 
-        success: false, 
-        error: error.message 
-      }, { status: 500 });
+      return Response.json({ success: false, error: 'No se pudo crear la unidad' }, { status: 500 });
     }
-    
+
     logger.info('Created unidad', { id: data.id });
-    
-    // Revalidar la página del edificio
-    const { data: edificio } = await supabase.from('edificios').select('consortium_id').eq('id', building_id).single();
-    if (edificio) {
-      revalidatePath(`/consorcios/${edificio.consortium_id}`);
-    }
+
+    const { data: edificio } = await supabase
+      .from('edificios')
+      .select('consortium_id')
+      .eq('id', building_id)
+      .single();
+    if (edificio) revalidatePath(`/consorcios/${edificio.consortium_id}`);
     revalidatePath('/unidades');
-    
+
     return Response.json({ success: true, data });
   } catch (err: unknown) {
     logger.error('Exception creating unidad', err);
-    return Response.json({ 
-      success: false, 
-      error: err instanceof Error ? err.message : 'Error interno' 
+    return Response.json({
+      success: false,
+      error: err instanceof Error ? err.message : 'Error interno'
     }, { status: 500 });
   }
 }

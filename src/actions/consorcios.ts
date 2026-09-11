@@ -3,10 +3,11 @@
 // =============================================================================
 // ACTIONS: Consorcios - Server Actions con Supabase
 // =============================================================================
-import { createSupabaseAdmin } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/server';
+import { requireUsuario, ROLES_GESTION } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { revalidatePath } from 'next/cache';
-import type { ActionResponse } from '@/types';
+import type { ActionResponse, EstadoMora, MoraStats } from '@/types';
 
 // =============================================================================
 // CONSORCIOS
@@ -14,7 +15,7 @@ import type { ActionResponse } from '@/types';
 
 export async function getConsorcios(): Promise<ActionResponse<any[]>> {
   try {
-    const supabase = createSupabaseAdmin();
+    const supabase = await createClient();
     logger.debug('Fetching consorcios');
     
     const { data, error } = await supabase
@@ -24,19 +25,19 @@ export async function getConsorcios(): Promise<ActionResponse<any[]>> {
     
     if (error) {
       logger.error('Error getConsorcios', error);
-      return { success: false, error: error.message };
+      return { success: false, error: 'No se pudo completar la operación' };
     }
     
     return { success: true, data: data || [] };
   } catch (error) {
     logger.error('Error getConsorcios', error);
-    return { success: false, error: String(error) };
+    return { success: false, error: 'Error interno' };
   }
 }
 
 export async function getConsorcio(id: string): Promise<ActionResponse<any>> {
   try {
-    const supabase = createSupabaseAdmin();
+    const supabase = await createClient();
     logger.debug('Fetching consorcio', { id });
     
     const { data, error } = await supabase
@@ -47,40 +48,33 @@ export async function getConsorcio(id: string): Promise<ActionResponse<any>> {
     
     if (error) {
       logger.error('Error getConsorcio', error);
-      return { success: false, error: error.message };
+      return { success: false, error: 'No se pudo completar la operación' };
     }
     
     return { success: true, data };
   } catch (error) {
     logger.error('Error getConsorcio', error);
-    return { success: false, error: String(error) };
+    return { success: false, error: 'Error interno' };
   }
 }
 
 export async function createConsorcio(formData: FormData): Promise<ActionResponse> {
-  logger.debug('createConsencio called', { 
-    entries: Array.from(formData.entries()).map(([k, v]) => `${k}: ${v}`).join(', ')
-  });
-  
   try {
-    const supabase = createSupabaseAdmin();
-    logger.debug('Supabase client created');
-    
+    const auth = await requireUsuario(ROLES_GESTION);
+    if (!auth.ok) return { success: false, error: 'Sin permiso' };
+
+    const supabase = await createClient();
+
     const nombre = formData.get('nombre') as string;
     const direccion = formData.get('direccion') as string;
     const ciudad = (formData.get('ciudad') as string) || 'CABA';
     const email_admin = formData.get('email_admin') as string || null;
     const telefono = formData.get('telefono') as string || null;
-    
-    logger.debug('Parsed values', { nombre, direccion, ciudad, email_admin: !!email_admin, telefono: !!telefono });
-    
+
     if (!nombre || !direccion) {
-      logger.warn('Validation failed: missing nombre or direccion');
       return { success: false, error: 'Nombre y dirección son obligatorios' };
     }
-    
-    logger.debug('Inserting into consorcios');
-    
+
     const { data, error } = await supabase
       .from('consorcios')
       .insert({
@@ -89,13 +83,14 @@ export async function createConsorcio(formData: FormData): Promise<ActionRespons
         ciudad,
         email_admin,
         telefono,
+        administradora_id: auth.usuario.administradoraId,
       })
       .select()
       .single();
-    
+
     if (error) {
       logger.error('Supabase error creating consorcio', error);
-      return { success: false, error: error.message };
+      return { success: false, error: 'No se pudo crear el consorcio' };
     }
     
     logger.info('Consorcio created', { id: data.id });
@@ -103,7 +98,7 @@ export async function createConsorcio(formData: FormData): Promise<ActionRespons
     return { success: true, data };
   } catch (error) {
     logger.error('Exception in createConsorcio', error);
-    return { success: false, error: String(error) };
+    return { success: false, error: 'Error interno' };
   }
 }
 
@@ -113,7 +108,7 @@ export async function createConsorcio(formData: FormData): Promise<ActionRespons
 
 export async function getEdificios(consorcioId: string): Promise<ActionResponse<any[]>> {
   try {
-    const supabase = createSupabaseAdmin();
+    const supabase = await createClient();
     logger.debug('Fetching edificios', { consortiumId: consorcioId });
     
     const { data, error } = await supabase
@@ -123,21 +118,23 @@ export async function getEdificios(consorcioId: string): Promise<ActionResponse<
     
     if (error) {
       logger.error('Error getEdificios', error);
-      return { success: false, error: error.message };
+      return { success: false, error: 'No se pudo completar la operación' };
     }
     
     return { success: true, data: data || [] };
   } catch (error) {
     logger.error('Error getEdificios', error);
-    return { success: false, error: String(error) };
+    return { success: false, error: 'Error interno' };
   }
 }
 
 export async function createEdificio(formData: FormData, consorcioId: string): Promise<ActionResponse> {
   try {
-    const supabase = createSupabaseAdmin();
-    logger.debug('Creating edificio', { consorcioId });
-    
+    const auth = await requireUsuario(ROLES_GESTION);
+    if (!auth.ok) return { success: false, error: 'Sin permiso' };
+
+    const supabase = await createClient();
+
     const nombre = formData.get('nombre') as string;
     const direccion = formData.get('direccion') as string || null;
     const pisos = parseInt(formData.get('pisos') as string) || 1;
@@ -157,7 +154,7 @@ export async function createEdificio(formData: FormData, consorcioId: string): P
     
     if (error) {
       logger.error('Error createEdificio', error);
-      return { success: false, error: error.message };
+      return { success: false, error: 'No se pudo completar la operación' };
     }
     
     logger.info('Edificio created', { id: data.id });
@@ -165,7 +162,7 @@ export async function createEdificio(formData: FormData, consorcioId: string): P
     return { success: true, data };
   } catch (error) {
     logger.error('Error createEdificio', error);
-    return { success: false, error: String(error) };
+    return { success: false, error: 'Error interno' };
   }
 }
 
@@ -175,7 +172,7 @@ export async function createEdificio(formData: FormData, consorcioId: string): P
 
 export async function getUnidades(edificioId: string): Promise<ActionResponse<any[]>> {
   try {
-    const supabase = createSupabaseAdmin();
+    const supabase = await createClient();
     
     const { data, error } = await supabase
       .from('unidades')
@@ -184,19 +181,19 @@ export async function getUnidades(edificioId: string): Promise<ActionResponse<an
     
     if (error) {
       logger.error('Error getUnidades:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: 'No se pudo completar la operación' };
     }
     
     return { success: true, data: data || [] };
   } catch (error) {
     logger.error('Error getUnidades:', error);
-    return { success: false, error: String(error) };
+    return { success: false, error: 'Error interno' };
   }
 }
 
 export async function getUnidad(id: string): Promise<ActionResponse<any>> {
   try {
-    const supabase = createSupabaseAdmin();
+    const supabase = await createClient();
     
     const { data, error } = await supabase
       .from('unidades')
@@ -206,19 +203,19 @@ export async function getUnidad(id: string): Promise<ActionResponse<any>> {
     
     if (error) {
       logger.error('Error getUnidad:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: 'No se pudo completar la operación' };
     }
     
     return { success: true, data };
   } catch (error) {
     logger.error('Error getUnidad:', error);
-    return { success: false, error: String(error) };
+    return { success: false, error: 'Error interno' };
   }
 }
 
 export async function getAllUnidades(): Promise<ActionResponse<any[]>> {
   try {
-    const supabase = createSupabaseAdmin();
+    const supabase = await createClient();
     
     const { data, error } = await supabase
       .from('unidades')
@@ -226,20 +223,23 @@ export async function getAllUnidades(): Promise<ActionResponse<any[]>> {
     
     if (error) {
       logger.error('Error getAllUnidades:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: 'No se pudo completar la operación' };
     }
     
     return { success: true, data: data || [] };
   } catch (error) {
     logger.error('Error getAllUnidades:', error);
-    return { success: false, error: String(error) };
+    return { success: false, error: 'Error interno' };
   }
 }
 
 export async function createUnidad(formData: FormData, edificioId: string): Promise<ActionResponse> {
   try {
-    const supabase = createSupabaseAdmin();
-    
+    const auth = await requireUsuario(ROLES_GESTION);
+    if (!auth.ok) return { success: false, error: 'Sin permiso' };
+
+    const supabase = await createClient();
+
     const numero = formData.get('numero') as string;
     const piso = parseInt(formData.get('piso') as string) || 0;
     const tipo = (formData.get('tipo') as string) || 'depto';
@@ -261,14 +261,14 @@ export async function createUnidad(formData: FormData, edificioId: string): Prom
     
     if (error) {
       logger.error('Error createUnidad:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: 'No se pudo completar la operación' };
     }
     
     revalidatePath(`/edificios/${edificioId}`);
     return { success: true, data };
   } catch (error) {
     logger.error('Error createUnidad:', error);
-    return { success: false, error: String(error) };
+    return { success: false, error: 'Error interno' };
   }
 }
 
@@ -283,7 +283,7 @@ export async function getAllCounts(): Promise<ActionResponse<{
   arreglos: number;
 }>> {
   try {
-    const supabase = createSupabaseAdmin();
+    const supabase = await createClient();
     
     // Count consorcios
     const { count: countConsorcios, error: errorConsorcios } = await supabase
@@ -328,7 +328,7 @@ export async function getAllCounts(): Promise<ActionResponse<{
     };
   } catch (error) {
     logger.error('Error getAllCounts', error);
-    return { success: false, error: String(error) };
+    return { success: false, error: 'Error interno' };
   }
 }
 
@@ -338,7 +338,7 @@ export async function getAllCounts(): Promise<ActionResponse<{
 
 export async function search(query: string): Promise<ActionResponse<any[]>> {
   try {
-    const supabase = createSupabaseAdmin();
+    const supabase = await createClient();
     
     const searchTerm = `%${query}%`;
     
@@ -365,7 +365,7 @@ export async function search(query: string): Promise<ActionResponse<any[]>> {
     return { success: true, data: results };
   } catch (error) {
     logger.error('Error search:', error);
-    return { success: false, error: String(error) };
+    return { success: false, error: 'Error interno' };
   }
 }
 
@@ -375,7 +375,7 @@ export async function search(query: string): Promise<ActionResponse<any[]>> {
 
 export async function getPagos(unidadId: string): Promise<ActionResponse<any[]>> {
   try {
-    const supabase = createSupabaseAdmin();
+    const supabase = await createClient();
     
     const { data, error } = await supabase
       .from('pagos')
@@ -385,19 +385,19 @@ export async function getPagos(unidadId: string): Promise<ActionResponse<any[]>>
     
     if (error) {
       logger.error('Error getPagos:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: 'No se pudo completar la operación' };
     }
     
     return { success: true, data: data || [] };
   } catch (error) {
     logger.error('Error getPagos:', error);
-    return { success: false, error: String(error) };
+    return { success: false, error: 'Error interno' };
   }
 }
 
 export async function getAllPagos(): Promise<ActionResponse<any[]>> {
   try {
-    const supabase = createSupabaseAdmin();
+    const supabase = await createClient();
     
     const { data, error } = await supabase
       .from('pagos')
@@ -410,20 +410,23 @@ export async function getAllPagos(): Promise<ActionResponse<any[]>> {
     
     if (error) {
       logger.error('Error getAllPagos:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: 'No se pudo completar la operación' };
     }
     
     return { success: true, data: data || [] };
   } catch (error) {
     logger.error('Error getAllPagos:', error);
-    return { success: false, error: String(error) };
+    return { success: false, error: 'Error interno' };
   }
 }
 
-export async function createPago(formData: FormData, usuarioId: string): Promise<ActionResponse> {
+export async function createPago(formData: FormData, _usuarioId?: string): Promise<ActionResponse> {
   try {
-    const supabase = createSupabaseAdmin();
-    
+    const auth = await requireUsuario(ROLES_GESTION);
+    if (!auth.ok) return { success: false, error: 'Sin permiso' };
+
+    const supabase = await createClient();
+
     const unidad_id = formData.get('unidad_id') as string;
     const monto = parseFloat(formData.get('monto') as string);
     const mes_pagado = formData.get('mes_pagado') as string;
@@ -437,7 +440,10 @@ export async function createPago(formData: FormData, usuarioId: string): Promise
       .limit(1);
     
     const propietario_id = propietarios?.[0]?.id;
-    
+    if (!propietario_id) {
+      return { success: false, error: 'La unidad no tiene propietario asignado.' };
+    }
+
     const { data, error } = await supabase
       .from('pagos')
       .insert({
@@ -454,7 +460,7 @@ export async function createPago(formData: FormData, usuarioId: string): Promise
     
     if (error) {
       logger.error('Error createPago:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: 'No se pudo completar la operación' };
     }
     
     revalidatePath(`/unidades/${unidad_id}`);
@@ -462,7 +468,7 @@ export async function createPago(formData: FormData, usuarioId: string): Promise
     return { success: true, data };
   } catch (error) {
     logger.error('Error createPago:', error);
-    return { success: false, error: String(error) };
+    return { success: false, error: 'Error interno' };
   }
 }
 
@@ -472,7 +478,7 @@ export async function createPago(formData: FormData, usuarioId: string): Promise
 
 export async function getArreglos(filtros?: { unidad_id?: string; estado?: string }): Promise<ActionResponse<any[]>> {
   try {
-    const supabase = createSupabaseAdmin();
+    const supabase = await createClient();
     
     let query = supabase
       .from('arreglos')
@@ -487,27 +493,30 @@ export async function getArreglos(filtros?: { unidad_id?: string; estado?: strin
     
     if (error) {
       logger.error('Error getArreglos:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: 'No se pudo completar la operación' };
     }
     
     return { success: true, data: data || [] };
   } catch (error) {
     logger.error('Error getArreglos:', error);
-    return { success: false, error: String(error) };
+    return { success: false, error: 'Error interno' };
   }
 }
 
 export async function createArreglo(formData: FormData): Promise<ActionResponse> {
   try {
-    const supabase = createSupabaseAdmin();
-    
+    const auth = await requireUsuario(ROLES_GESTION);
+    if (!auth.ok) return { success: false, error: 'Sin permiso' };
+
+    const supabase = await createClient();
+
     const titulo = formData.get('titulo') as string;
     const unidad_id = formData.get('unidad_id') as string || null;
     const descripcion = formData.get('descripcion') as string || null;
     const prioridad = (formData.get('prioridad') as string) || 'media';
     const presupuesto = parseFloat(formData.get('presupuesto') as string) || null;
     const es_area_comun = formData.get('es_area_comun') === 'true';
-    
+
     const { data, error } = await supabase
       .from('arreglos')
       .insert({
@@ -519,20 +528,21 @@ export async function createArreglo(formData: FormData): Promise<ActionResponse>
         es_area_comun,
         estado: 'pendiente',
         fecha_solicitud: new Date().toISOString().split('T')[0],
+        administradora_id: unidad_id ? undefined : auth.usuario.administradoraId,
       })
       .select()
       .single();
     
     if (error) {
       logger.error('Error createArreglo:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: 'No se pudo completar la operación' };
     }
     
     revalidatePath('/mantenimiento');
     return { success: true, data };
   } catch (error) {
     logger.error('Error createArreglo:', error);
-    return { success: false, error: String(error) };
+    return { success: false, error: 'Error interno' };
   }
 }
 
@@ -541,9 +551,12 @@ export async function updateArregloEstado(
   nuevoEstado: string
 ): Promise<ActionResponse> {
   try {
-    const supabase = createSupabaseAdmin();
-    
-    const updateData: any = { estado: nuevoEstado };
+    const auth = await requireUsuario(ROLES_GESTION);
+    if (!auth.ok) return { success: false, error: 'Sin permiso' };
+
+    const supabase = await createClient();
+
+    const updateData: Record<string, unknown> = { estado: nuevoEstado };
     
     if (nuevoEstado === 'completado') {
       updateData.fecha_completado = new Date().toISOString().split('T')[0];
@@ -558,14 +571,14 @@ export async function updateArregloEstado(
     
     if (error) {
       logger.error('Error updateArregloEstado:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: 'No se pudo completar la operación' };
     }
     
     revalidatePath('/mantenimiento');
     return { success: true, data };
   } catch (error) {
     logger.error('Error updateArregloEstado:', error);
-    return { success: false, error: String(error) };
+    return { success: false, error: 'Error interno' };
   }
 }
 
@@ -573,32 +586,58 @@ export async function updateArregloEstado(
 // MORA
 // =============================================================================
 
-export async function getMoraStats(): Promise<ActionResponse<any>> {
+export async function getMoraStats(): Promise<ActionResponse<MoraStats>> {
   try {
-    const supabase = createSupabaseAdmin();
-    
-    // Contar unidades por estado de mora
-    const { data, error } = await supabase
+    const supabase = await createClient();
+
+    // Total de unidades.
+    const { count: totalUnidades, error: errorUnidades } = await supabase
       .from('unidades')
-      .select('estado_mora');
-    
-    if (error) {
-      logger.error('Error getMoraStats:', error);
-      return { success: false, error: error.message };
+      .select('*', { count: 'exact', head: true });
+
+    if (errorUnidades) {
+      logger.error('Error getMoraStats (unidades):', errorUnidades);
+      return { success: false, error: errorUnidades.message };
     }
-    
-    const stats = {
-      total: data?.length || 0,
-      al_dia: data?.filter(u => u.estado_mora === 'al_dia').length || 0,
-      deudor: data?.filter(u => u.estado_mora === 'deudor').length || 0,
-      apta_carta: data?.filter(u => u.estado_mora === 'apto_carta').length || 0,
-      inicio_juicio: data?.filter(u => u.estado_mora === 'inicio_juicio').length || 0,
-      juicio_en_curso: data?.filter(u => u.estado_mora === 'juicio_en_curso').length || 0,
+
+    // El estado de mora de una unidad es el estado_nuevo de su último mora_logs.
+    // La columna unidades.estado_mora no existe en el schema.
+    const { data: logs, error: errorLogs } = await supabase
+      .from('mora_logs')
+      .select('unidad_id, estado_nuevo, created_at')
+      .order('created_at', { ascending: false });
+
+    if (errorLogs) {
+      logger.error('Error getMoraStats (mora_logs):', errorLogs);
+      return { success: false, error: errorLogs.message };
+    }
+
+    const ultimoEstado = new Map<string, EstadoMora>();
+    for (const log of logs ?? []) {
+      if (!ultimoEstado.has(log.unidad_id)) {
+        ultimoEstado.set(log.unidad_id, log.estado_nuevo as EstadoMora);
+      }
+    }
+
+    const estados = [...ultimoEstado.values()];
+    const total = totalUnidades ?? 0;
+    const contar = (estado: EstadoMora) => estados.filter((e) => e === estado).length;
+
+    // Unidades sin ningún registro de mora se consideran al día.
+    const sinRegistro = Math.max(0, total - estados.length);
+
+    const stats: MoraStats = {
+      total,
+      al_dia: contar('al_dia') + sinRegistro,
+      deudor: contar('deudor'),
+      apto_carta: contar('apto_carta'),
+      inicio_juicio: contar('inicio_juicio'),
+      juicio_en_curso: contar('juicio_en_curso'),
     };
-    
+
     return { success: true, data: stats };
   } catch (error) {
     logger.error('Error getMoraStats:', error);
-    return { success: false, error: String(error) };
+    return { success: false, error: 'Error interno' };
   }
 }
