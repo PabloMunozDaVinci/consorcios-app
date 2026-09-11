@@ -12,7 +12,9 @@
     "pm2:restart": "pm2 restart consorcios-app",
     "pm2:logs": "pm2 logs consorcios-app",
     "pm2:monit": "pm2 monit",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
@@ -34,6 +36,7 @@
     "eslint-config-next": "16.2.3",
     "postcss": "^8.5.9",
     "tailwindcss": "^3.4.19",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.4"
   }
 }

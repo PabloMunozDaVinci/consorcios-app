@@ -6,22 +6,11 @@
 import { createClient } from '@/lib/supabase/server';
 import { insertMoraLog } from '@/lib/supabase/tenant-insert';
 import { requireUsuario, ROLES_GESTION } from '@/lib/auth';
+import { estadoPorMesesAtrasados } from '@/lib/mora-estado';
 import { revalidatePath } from 'next/cache';
-import type { EstadoMora } from '@/types';
 
 // NOTA: Descomenta cuando tengas Resend configurado
 // import { Resend } from 'resend';
-
-// =============================================================================
-// CONSTANTS
-// =============================================================================
-
-const ESTADOS_MORA = {
-  al_dia: { siguiente: 'deudor', meses_min: 0 },
-  deudor: { siguiente: 'apto_carta', meses_min: 3 },
-  apto_carta: { siguiente: 'inicio_juicio', meses_min: 6 },
-  inicio_juicio: { siguiente: 'juicio_en_curso', meses_min: 12 },
-} as const;
 
 // =============================================================================
 // EMAIL TEMPLATES
@@ -108,11 +97,7 @@ export async function evaluarYEnviarMora(): Promise<{
 
         if (!prop) continue;
 
-        let nuevoEstado: EstadoMora;
-        if (meses_atrasados >= 12) nuevoEstado = 'juicio_en_curso';
-        else if (meses_atrasados >= 6) nuevoEstado = 'inicio_juicio';
-        else if (meses_atrasados >= 3) nuevoEstado = 'apto_carta';
-        else nuevoEstado = 'deudor';
+        const nuevoEstado = estadoPorMesesAtrasados(meses_atrasados);
 
         const { data: ultimoLog } = await supabase
           .from('mora_logs')

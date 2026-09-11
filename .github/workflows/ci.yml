@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    name: lint + tsc + build + tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+      # Tests unitarios (lógica pura: safeRedirectPath, máquina de estados de
+      # mora, etc.) — no necesitan red ni credenciales, corren siempre.
+      # Los *.integration.test.ts (aislamiento multi-tenant, get_saldo_deudor)
+      # están excluidos acá y corren en el job de abajo, sólo si hay secrets.
+      - name: Unit tests
+        run: npx vitest run --exclude '**/*.integration.test.ts'
+
+  integration-tests:
+    name: tests de integración (Supabase real)
+    runs-on: ubuntu-latest
+    # Sólo corre si están configurados los secrets del proyecto Supabase real
+    # contra el que pegan estos tests (no hay un segundo proyecto de "test").
+    #
+    # ⚠️ Secrets que faltan configurar en GitHub (Settings → Secrets and
+    # variables → Actions) para que este job deje de saltearse:
+    #   - NEXT_PUBLIC_SUPABASE_URL
+    #   - NEXT_PUBLIC_SUPABASE_ANON_KEY
+    #   - SUPABASE_SERVICE_ROLE_KEY
+    # Ver .env.local (gitignored) para los valores reales del proyecto
+    # jbikxksdignshfgnbipi, y PENDIENTES.md para los usuarios de test
+    # (admin-a@example.invalid / admin-b@example.invalid) que estos tests usan.
+    if: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY != '' }}
+    needs: build-and-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Integration tests
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npx vitest run integration
