@@ -1,19 +1,27 @@
 // =============================================================================
 // PROXY (ex middleware, Next 16): Full Security Protection
 // =============================================================================
-// - JWT verification
-// - Geolocation blocking (Argentina only)
-// - Rate limiting
+// - Sesión (@supabase/ssr)
+// - Blocklist de IPs + rate limiting (persistente, tabla rate_limits)
+// - CSRF (Origin/Referer) en mutaciones
 // - Security logging
-// - Security headers
+// - Security headers (CSP con nonce)
 // =============================================================================
-// NOTE: Set DISABLE_AUTH=true in .env.local to bypass auth for testing
+// NOTE: Set DISABLE_AUTH=true in .env.local para bypassear auth en dev.
+//
+// El geo-blocking (Argentina-only) que había acá se ELIMINÓ (bloque 2, ítem 27):
+// era un no-op que siempre devolvía isArgentina=true para IPs desconocidas
+// ("TODO: Replace with proper geolocation service" nunca se hizo), y si alguna
+// vez se hubiera arreglado, un falso positivo baneaba una IP PARA SIEMPRE sin
+// proceso de apelación (blockIP(..., null) = permanente). Implementarlo de
+// verdad requiere Cloudflare u otro servicio real -- no está en el alcance de
+// este proyecto hoy. Si se retoma, que nazca con un proceso de desbloqueo.
 
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-import { isAllowedCountryMiddleware, getCountryCodeMiddleware } from '@/lib/geolocation-mw';
-import { isIPBlocked, blockIP, getTodayAttempts } from '@/lib/security/blocklist';
+import { getTrustedClientIP } from '@/lib/trusted-ip';
+import { isIPBlocked, getTodayAttempts, checkRateLimitDB } from '@/lib/security/blocklist';
 import {
   logIPBlocked,
   logJWTInvalid,
@@ -25,37 +33,15 @@ import { updateSession } from '@/lib/supabase/proxy';
 
 // Configuration
 const CONFIG = {
-  // Rate limits
-  RATE_LIMIT_WINDOW: 60 * 1000, // 1 minute
-  RATE_LIMIT_MAX: 100, // Max requests per minute per IP (general)
-  AUTH_RATE_LIMIT_MAX: 5, // Max auth attempts per minute
   DAILY_ATTEMPT_LIMIT: 20, // Max attempts per day before block
-  
-  // Block durations  
-  BLOCK_DURATION_BRUTE_FORCE: 15 * 60 * 1000, // 15 minutes for brute force
-  BLOCK_DURATION_DAILY_LIMIT: 24 * 60 * 60 * 1000, // 24 hours for rate limit
-  
-  // Timeouts
-  SESSION_TIMEOUT: 30 * 60 * 1000, // 30 minutes
 };
-
-// Rate limit tracking (in-memory for production use Redis)
-const rateLimitStore = new Map<string, { count: number; resetTime: number; authFails: number }>();
 
 // =============================================================================
 // HELPER FUNCTIONS
 // =============================================================================
 
 function getClientIP(request: NextRequest): string {
-  const forwarded = request.headers.get('x-forwarded-for');
-  if (forwarded) {
-    return forwarded.split(',')[0].trim();
-  }
-  const realIP = request.headers.get('x-real-ip');
-  if (realIP) {
-    return realIP;
-  }
-  return 'unknown';
+  return getTrustedClientIP((name) => request.headers.get(name));
 }
 
 function getUserAgent(request: NextRequest): string {
@@ -97,34 +83,35 @@ function isAuthRoute(pathname: string): boolean {
   return pathname.startsWith('/api/auth/');
 }
 
-// Rate limiter
-function checkRateLimit(ip: string, isAuthEndpoint: boolean): { allowed: boolean; remaining: number } {
-  const now = Date.now();
-  const limit = isAuthEndpoint ? CONFIG.AUTH_RATE_LIMIT_MAX : CONFIG.RATE_LIMIT_MAX;
-  
-  let record = rateLimitStore.get(ip);
-  
-  if (!record || now > record.resetTime) {
-    record = { count: 0, resetTime: now + CONFIG.RATE_LIMIT_WINDOW, authFails: 0 };
-    rateLimitStore.set(ip, record);
-  }
-  
-  record.count++;
-  
-  // Clean old entries
-  if (rateLimitStore.size > 10000) {
-    const cutoff = now - CONFIG.RATE_LIMIT_WINDOW;
-    for (const [key, value] of rateLimitStore) {
-      if (value.resetTime < cutoff) {
-        rateLimitStore.delete(key);
-      }
+function isSafeMethod(method: string): boolean {
+  return method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
+}
+
+/**
+ * CSRF: con auth por cookie, cualquier sitio de terceros puede hacer que el
+ * browser mande esa cookie a nuestras rutas. Exigimos que Origin (o, si el
+ * browser no lo manda, Referer) sea nuestro propio sitio.
+ */
+function hasValidOrigin(request: NextRequest): boolean {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  const selfOrigin = siteUrl ? new URL(siteUrl).origin : request.nextUrl.origin;
+
+  const origin = request.headers.get('origin');
+  if (origin) return origin === selfOrigin;
+
+  const referer = request.headers.get('referer');
+  if (referer) {
+    try {
+      return new URL(referer).origin === selfOrigin;
+    } catch {
+      return false;
     }
   }
-  
-  return {
-    allowed: record.count <= limit,
-    remaining: Math.max(0, limit - record.count),
-  };
+
+  // Ni Origin ni Referer: la mayoría de los browsers siempre mandan uno de
+  // los dos en un POST/PUT/DELETE cross-site o same-site: si falta, no lo
+  // dejamos pasar.
+  return false;
 }
 
 // =============================================================================
@@ -136,9 +123,18 @@ export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const userAgent = getUserAgent(request);
 
+  // Nonce único por request para el CSP (ver "SECURITY HEADERS" más abajo).
+  // Se manda tanto en la request (para que Next lo lea y lo aplique a sus
+  // propios scripts durante el render) como en la response (para el browser).
+  const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
+  const cspHeaderValue = buildCSP(nonce);
+  const baseRequestHeaders = new Headers(request.headers);
+  baseRequestHeaders.set('x-nonce', nonce);
+  baseRequestHeaders.set('Content-Security-Policy', cspHeaderValue);
+
   // 1. Add security headers (SIEMPRE, incluso con DISABLE_AUTH)
-  const response = NextResponse.next();
-  addSecurityHeaders(response);
+  const response = NextResponse.next({ request: { headers: baseRequestHeaders } });
+  addSecurityHeaders(response, cspHeaderValue);
 
   // DISABLE_AUTH: sólo tiene efecto fuera de producción. En prod se ignora
   // y se loguea un warning (evita que un .env mal copiado abra la app entera).
@@ -177,18 +173,7 @@ export async function proxy(request: NextRequest) {
     // Block expired - continue
   }
   
-  // 4. GEOLOCATION BLOCK - Block non-Argentinian IPs
-  if (!isAllowedCountryMiddleware(ip)) {
-    const countryCode = getCountryCodeMiddleware(ip);
-    await logIPBlocked(ip, 'geo_block', { country: countryCode });
-    await blockIP(ip, 'geo_block', countryCode, null); // Permanent
-    return NextResponse.json(
-      { error: 'Acceso denegado. Esta aplicación solo está disponible desde Argentina.' },
-      { status: 403 }
-    );
-  }
-  
-  // 5. RATE LIMIT - Check daily attempts from Argentina
+  // 4. RATE LIMIT - intentos diarios (tabla blocked_ips/security_logs, cacheado 5s)
   const todayAttempts = await getTodayAttempts(ip);
   if (todayAttempts >= CONFIG.DAILY_ATTEMPT_LIMIT) {
     await logIPBlocked(ip, 'rate_limit', { attemptsToday: todayAttempts, duration: '24h' });
@@ -197,10 +182,10 @@ export async function proxy(request: NextRequest) {
       { status: 429 }
     );
   }
-  
-  // 6. RATE LIMIT - Check per-minute rate limit
+
+  // 5. RATE LIMIT - por minuto, persistente (tabla rate_limits, no en memoria)
   const isAuth = isAuthRoute(pathname);
-  const rateCheck = checkRateLimit(ip, isAuth);
+  const rateCheck = await checkRateLimitDB(ip, isAuth);
   if (!rateCheck.allowed) {
     await logRateLimitExceeded(ip, pathname);
     return NextResponse.json(
@@ -208,7 +193,20 @@ export async function proxy(request: NextRequest) {
       { status: 429 }
     );
   }
-  
+
+  // 6. CSRF - las mutaciones vía cookie necesitan que Origin/Referer coincida
+  // con nuestro propio sitio (no aplica a GET/HEAD/OPTIONS, que no mutan).
+  if (!isSafeMethod(request.method) && pathname.startsWith('/api/')) {
+    if (!hasValidOrigin(request)) {
+      await logSuspiciousRequest(ip, 'csrf_origin_mismatch', {
+        origin: request.headers.get('origin'),
+        referer: request.headers.get('referer'),
+        pathname,
+      });
+      return NextResponse.json({ error: 'Origen inválido' }, { status: 403 });
+    }
+  }
+
   // 7. AUTH - refresh de sesión (@supabase/ssr) + chequeo optimista.
   //    La autorización fina (rol, tenant) va en cada route handler / action.
   const { response: sessionResponse, user } = await updateSession(request);
@@ -223,14 +221,13 @@ export async function proxy(request: NextRequest) {
 
   // Autenticado: propagar identidad a las rutas downstream. request.headers.set()
   // no llega: hay que reconstruir la request con NextResponse.next({ request: { headers } }).
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set('x-user-id', user.id);
-  requestHeaders.set('x-user-email', user.email ?? '');
+  baseRequestHeaders.set('x-user-id', user.id);
+  baseRequestHeaders.set('x-user-email', user.email ?? '');
 
-  const authedResponse = NextResponse.next({ request: { headers: requestHeaders } });
+  const authedResponse = NextResponse.next({ request: { headers: baseRequestHeaders } });
   // Conservar las cookies de sesión que updateSession pudo haber refrescado.
   sessionResponse.cookies.getAll().forEach((cookie) => authedResponse.cookies.set(cookie));
-  addSecurityHeaders(authedResponse);
+  addSecurityHeaders(authedResponse, cspHeaderValue);
   return authedResponse;
 }
 
@@ -238,39 +235,59 @@ export async function proxy(request: NextRequest) {
 // SECURITY HEADERS
 // =============================================================================
 
-function addSecurityHeaders(response: NextResponse) {
+/**
+ * CSP con nonce (ítem 29). Reemplaza 'unsafe-inline'/'unsafe-eval' en
+ * producción; en dev hace falta 'unsafe-eval' porque React lo usa para los
+ * stack traces del debugger (ver docs de Next 16 sobre proxy + CSP nonces).
+ * OJO: usar nonce implica que TODAS las páginas rendericen dinámicamente —
+ * ver 'force-dynamic' agregado a las páginas cliente que antes eran estáticas.
+ */
+function buildCSP(nonce: string): string {
+  const isDev = process.env.NODE_ENV !== 'production';
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://*.supabase.co';
+
+  const connectSrc = [`'self'`, supabaseUrl, 'https://*.resend.dev', 'https://api.ipify.org', 'https://ipapi.co'];
+  if (isDev) connectSrc.push('http://localhost:*', 'ws://localhost:*');
+
+  const csp = [
+    `default-src 'self'`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ''}`,
+    `style-src 'self' 'unsafe-inline'`, // Tailwind no usa nonce; ver PENDIENTES.md
+    `img-src 'self' data: https:`,
+    `font-src 'self'`,
+    `connect-src ${connectSrc.join(' ')}`,
+    `object-src 'none'`,
+    `base-uri 'self'`,
+    `frame-ancestors 'none'`,
+    `form-action 'self'`,
+  ];
+  if (!isDev) csp.push('upgrade-insecure-requests');
+
+  return csp.join('; ');
+}
+
+function addSecurityHeaders(response: NextResponse, cspHeaderValue: string) {
   // Core security headers
   response.headers.set('X-Frame-Options', 'DENY');
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   response.headers.set('X-XSS-Protection', '1; mode=block');
-  
+
   // HSTS (only in production)
   if (process.env.NODE_ENV === 'production') {
     response.headers.set(
-      'Strict-Transport-Security', 
+      'Strict-Transport-Security',
       'max-age=31536000; includeSubDomains; preload'
     );
   }
-  
-  // CSP - Strict Content Security Policy
-  response.headers.set(
-    'Content-Security-Policy',
-    "default-src 'self'; " +
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
-    "style-src 'self' 'unsafe-inline'; " +
-    "img-src 'self' data: https:; " +
-    "font-src 'self'; " +
-    "connect-src 'self' http://localhost:* https://*.supabase.co https://*.resend.dev https://api.ipify.org https://ipapi.co; " +
-    "frame-ancestors 'none'; " +
-    "form-action 'self';"
-  );
-  
+
+  response.headers.set('Content-Security-Policy', cspHeaderValue);
+
   // Additional headers
   response.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
   response.headers.set('Cross-Origin-Resource-Policy', 'same-origin');
-  
+
   return response;
 }
 
@@ -279,15 +296,13 @@ function addSecurityHeaders(response: NextResponse) {
 // =============================================================================
 
 export const config = {
-  // Matcher explícito por prefijo. Cubre la API y las rutas de páginas
-  // protegidas; deja fuera assets, _next, y las páginas públicas (/, /login...).
+  // Corre en todo (incluidas /, /login, etc.) para que los security headers y
+  // el CSP con nonce protejan también las páginas públicas — antes el matcher
+  // sólo cubría rutas protegidas y /login se servía sin CSP ni X-Frame-Options.
+  // El auth-gating real sigue acotado por isPublicRoute() adentro de proxy().
+  // Se excluyen assets estáticos reales por extensión (no "cualquier path con
+  // un punto", que era el bypass original de §6.4).
   matcher: [
-    '/api/:path*',
-    '/admin/:path*',
-    '/consorcios/:path*',
-    '/edificios/:path*',
-    '/unidades/:path*',
-    '/pagos/:path*',
-    '/mantenimiento/:path*',
+    '/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|css|js|map|woff2?|ttf|ico)$).*)',
   ],
 };

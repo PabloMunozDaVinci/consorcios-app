@@ -146,18 +146,17 @@ Los 10 route handlers y los 3 archivos de `actions/` usan `createSupabaseAdmin()
 ~~`redirectToLogin()` metía la URL completa en `?redirect=` y el login hacía `window.location.href = redirect` sin validar.~~
 **Resuelto**: `src/lib/safe-redirect.ts` (sólo paths internos); usado en `login/page.tsx`, y `redirectToLogin` ya sólo guarda `path+query`.
 
-### 🟠 6.6 — Geo-blocking que no bloquea nada
-`geolocation-mw.ts:760` devuelve, para toda IP desconocida:
-```ts
-return { country: 'Argentina', countryCode: 'AR', isArgentina: true };
-```
-La feature entera es un no-op (el comentario dice "TODO: Replace with proper geolocation service"). Peor: `middleware.ts` en el path de geo-block llama a `blockIP(ip, 'geo_block', cc, null)` → **bloqueo permanente** en DB. Si alguna vez se arregla la geolocalización, un falso positivo banea a un propietario para siempre sin proceso de apelación.
+### 🟠 6.6 — ~~Geo-blocking que no bloquea nada~~ · RESUELTO (bloque 2)
+~~`geolocation-mw.ts` devolvía `isArgentina:true` para toda IP desconocida (no-op); si se arreglaba, un falso positivo baneaba para siempre (`blockIP(..., null)`).~~
+**Resuelto**: se eliminó el geo-blocking entero (código y llamada en el proxy). Real geo-blocking necesita un servicio externo (Cloudflare); no está en alcance hoy. `geolocation-mw.ts` borrado.
 
-### 🟠 6.7 — IP tomada de `x-forwarded-for` sin validar
-`getClientIP()` (`middleware.ts:62`) confía en el header crudo. Es spoofeable: rotar el header saltea rate limit, blocklist y el límite diario. Si la app queda expuesta sin un reverse proxy que reescriba el header, no hay defensa. **Fix:** tomar la IP del proxy de confianza (`x-real-ip` seteado por nginx, o `request.ip`).
+### 🟠 6.7 — ~~IP tomada de `x-forwarded-for` sin validar~~ · RESUELTO (bloque 2)
+~~`getClientIP()` confiaba en el header crudo, spoofeable.~~
+**Resuelto**: `src/lib/trusted-ip.ts` prioriza `x-real-ip` (lo setea nginx, no lo puede pisar el cliente); `SETUP.md` ya documentaba la config de nginx correcta.
 
-### 🟠 6.8 — Rate limiting en memoria
-`rateLimitStore = new Map()` en `middleware.ts:47`. Se pierde en cada restart/deploy y no se comparte entre instancias PM2. El propio comentario lo admite ("for production use Redis"). Además el chequeo de "intentos diarios" hace **una query a Supabase por request** (`getTodayAttempts`) + otra (`isIPBlocked`) — 2 round-trips a la DB en el hot path de cada navegación.
+### 🟠 6.8 — ~~Rate limiting en memoria~~ · RESUELTO (bloque 2)
+~~`rateLimitStore = new Map()` se perdía en cada restart y no se compartía entre instancias PM2. Además 2 round-trips a la DB por request.~~
+**Resuelto**: migración `005_rate_limits.sql` (tabla + función atómica `rate_limit_hit`); `isIPBlocked`/`getTodayAttempts` cacheados 5s en memoria del proceso.
 
 ### 🟠 6.9 — ~~Bucket de Storage público~~ · RESUELTO (bloque 1)
 ~~`schema.sql:295` creaba `mantenimiento` con `public=true`. `UploadImage.tsx` usaba `getPublicUrl()`.~~
@@ -171,11 +170,13 @@ La feature entera es un no-op (el comentario dice "TODO: Replace with proper geo
 ~~`listUsers()` paginado (50 por default): con más usuarios el reset dejaba de andar para los que no entraban en la primera página.~~
 **Resuelto**: llama `resetPasswordForEmail()` directo, no enumerable, sin paginación.
 
-### 🟡 6.12 — CSP débil
-`script-src 'self' 'unsafe-inline' 'unsafe-eval'` anula buena parte del valor de la CSP. Además `connect-src` incluye `http://localhost:*` en **producción** (commit `5e5ce5a`). **Fix:** nonces de Next.js y sacar localhost del build de prod.
+### 🟡 6.12 — ~~CSP débil~~ · RESUELTO (bloque 2)
+~~`script-src 'self' 'unsafe-inline' 'unsafe-eval'` anulaba buena parte de la CSP; `connect-src` incluía `localhost` en producción.~~
+**Resuelto**: CSP con nonce por request en `src/proxy.ts` (sin `unsafe-inline`/`unsafe-eval` en `script-src` en prod); `localhost` sólo en `connect-src` de dev. `style-src` conserva `unsafe-inline` (ver `PENDIENTES.md`).
 
-### 🟡 6.13 — Sin protección CSRF
-Las API routes aceptan `POST` con JSON sin verificar `Origin`/`Referer`. Con auth por cookie (que es a donde hay que ir), esto se vuelve explotable.
+### 🟡 6.13 — ~~Sin protección CSRF~~ · RESUELTO (bloque 2)
+~~Las API routes aceptaban POST/PUT/DELETE sin verificar Origin/Referer.~~
+**Resuelto**: el proxy exige `Origin` (o `Referer`) propio en mutaciones a `/api`. Verificado: origen cruzado → 403.
 
 ### 🟡 6.14 — ~~Server Actions sin control de acceso~~ · RESUELTO (bloque 1)
 ~~`admin/mora/page.tsx` exponía un Server Action inline que corría `evaluarYEnviarMora()` sin chequeo de rol.~~
@@ -238,14 +239,17 @@ Toda unidad debe lo mismo, sin importar el coeficiente, el edificio ni el perío
 ~~`aptoo_carta` (doble o) en `ESTADOS_MORA` y `getEmailTemplate()`; el template de carta documento nunca se seleccionaba.~~
 **Resuelto**: `aptoo_carta` → `apto_carta` en `src/actions/mora.ts`.
 
-### 🟡 7.9 — El seed duplica filas en cada ejecución
-`ON CONFLICT DO NOTHING` sin constraint único sobre `consorcios(nombre)` no hace nada. Verificado: dos corridas → dos "Consorcio Torre Centro".
+### 🟡 7.9 — ~~El seed duplica filas en cada ejecución~~ · RESUELTO (bloque 2)
+~~`ON CONFLICT DO NOTHING` sin constraint único sobre `consorcios(nombre)` no hacía nada.~~
+**Resuelto**: índice único `(administradora_id, nombre)`.
 
-### 🟡 7.10 — `updated_at` nunca se actualiza
-Ocho tablas tienen la columna con `DEFAULT NOW()` y **cero triggers**. Queda congelada en la fecha de creación.
+### 🟡 7.10 — ~~`updated_at` nunca se actualiza~~ · RESUELTO (bloque 2)
+~~Ocho tablas con la columna y cero triggers.~~
+**Resuelto**: trigger `set_updated_at()` en las 7 tablas que lo necesitaban.
 
-### 🟡 7.11 — `es_dueño_principal` + `porcentaje_propiedad` vs `UNIQUE (unidad_id)`
-El schema modela copropiedad (porcentaje, dueño principal) pero la constraint `unique_propietario_por_unidad` permite **un solo propietario por unidad**. Contradicción de diseño: en propiedad horizontal la copropiedad es común (sucesiones, matrimonios).
+### 🟡 7.11 — ~~`es_dueño_principal` + `porcentaje_propiedad` vs `UNIQUE (unidad_id)`~~ · RESUELTO (bloque 2)
+~~Contradicción de diseño entre las columnas de copropiedad y la constraint de un solo propietario.~~
+**Decisión registrada**: gana la constraint (un titular por unidad); copropiedad real queda para la Fase 4 del ROADMAP. Columnas con `NOT NULL` + default explícito y comentario documentando la decisión.
 
 ### ⚪ 7.12 — ~~`recuperar-password/page.tsx` tiene el `import` al final del archivo~~ · RESUELTO (bloque 1)
 ~~`import { useRouter }` en la última línea, `router` nunca usado.~~

@@ -1,28 +1,10 @@
 // =============================================================================
-// PAGE: Logout - Sign out and redirect
+// PAGE: Logout (Server wrapper — fuerza render dinámico para el CSP con nonce)
 // =============================================================================
-'use client';
+export const dynamic = 'force-dynamic';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import LogoutPageClient from './LogoutPageClient';
 
 export default function LogoutPage() {
-  const router = useRouter();
-  const supabase = createClient();
-
-  useEffect(() => {
-    async function signOut() {
-      await supabase.auth.signOut();
-      router.push('/login');
-      router.refresh();
-    }
-    signOut();
-  }, []);
-
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <p className="text-gray-500">Cerrando sesión...</p>
-    </div>
-  );
+  return <LogoutPageClient />;
 }

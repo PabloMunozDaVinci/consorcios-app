@@ -333,41 +333,9 @@ export async function getAllCounts(): Promise<ActionResponse<{
 }
 
 // =============================================================================
-// SEARCH
-// =============================================================================
-
-export async function search(query: string): Promise<ActionResponse<any[]>> {
-  try {
-    const supabase = await createClient();
-    
-    const searchTerm = `%${query}%`;
-    
-    // Buscar propietarios
-    const { data: propietarios, error: propietariosError } = await supabase
-      .from('propietarios')
-      .select('id, nombre, apellido, dni, unidad_id')
-      .or(`nombre.ilike.${searchTerm},apellido.ilike.${searchTerm},dni.ilike.${searchTerm}`)
-      .limit(10);
-    
-    if (propietariosError) {
-      logger.error('Error search:', propietariosError);
-      return { success: false, error: propietariosError.message };
-    }
-    
-    const results = (propietarios || []).map((p: any) => ({
-      type: 'propietario',
-      id: p.id,
-      title: `${p.apellido}, ${p.nombre}`,
-      subtitle: `Unidad ${p.unidad_id}`,
-      url: `/unidades/${p.unidad_id}`,
-    }));
-    
-    return { success: true, data: results };
-  } catch (error) {
-    logger.error('Error search:', error);
-    return { success: false, error: 'Error interno' };
-  }
-}
+// La búsqueda vive en src/actions/search.ts (buscaba consorcios/unidades/
+// propietarios en dos lugares con lógicas distintas; SearchBox.tsx sólo
+// importaba la de search.ts, así que esta copia estaba muerta).
 
 // =============================================================================
 // PAGOS

@@ -100,17 +100,42 @@ Los 13 ítems (8-20) están hechos y verificados, no sólo con tsc/build:
 
 ---
 
-# BLOQUE 2 — estado
+# BLOQUE 2 — ✅ completo (22-30; el 21 anulado por instrucción del usuario)
 
-> El punto 21 (modelo de expensas simple) queda **anulado** por instrucción del usuario:
-> lo reemplaza la cuenta corriente de `ROADMAP.md` / `PROMPT-features.md` Fase 1, que se
-> hace como parte de ese prompt, no acá.
+> El punto 21 (modelo de expensas simple) queda **anulado**: lo reemplaza la cuenta
+> corriente de `ROADMAP.md` / `PROMPT-features.md` Fase 1 (trabajo aparte, no acá).
 
-Pendiente de implementar: 22 (copropiedad `es_dueño_principal`/`porcentaje_propiedad` vs.
-constraint), 23 (`updated_at` triggers en las 8 tablas), 24 (constraint única para el seed),
-25 (rate limiting en Supabase/Redis), 26 (IP de proxy confiable), 27 (geo-blocking real o
-eliminarlo), 28 (~~reset-password sin `listUsers()` paginado~~ ya resuelto en el Bloque 1,
-adelantado), 29 (CSP con nonces), 30 (protección CSRF).
+- **22**: `es_dueño_principal`/`porcentaje_propiedad` NOT NULL con default; decisión
+  registrada en comentario de columna (gana la constraint de un solo propietario;
+  copropiedad real es Fase 4).
+- **23**: triggers `updated_at` en las tablas que faltaban.
+- **24**: índice único `(administradora_id, nombre)` en `consorcios`.
+- **25**: rate limit por minuto movido de un `Map()` en memoria a la tabla
+  `rate_limits` (función atómica `rate_limit_hit`); `isIPBlocked`/`getTodayAttempts`
+  cacheados 5s en memoria para no pegarle a la DB en cada request.
+- **26**: `getClientIP` prioriza `x-real-ip` (lo pone nginx) sobre `x-forwarded-for`
+  (spoofeable). `src/lib/trusted-ip.ts`.
+- **27**: geo-blocking **eliminado** (era un no-op que además baneaba IPs para
+  siempre si alguna vez se "arreglaba"). Real geo-blocking necesita un servicio
+  externo (Cloudflare); no está en alcance.
+- **28**: ya resuelto en el Bloque 1 (reset-password sin `listUsers()` paginado).
+- **29**: CSP con nonce por request; sin `unsafe-inline`/`unsafe-eval` en prod;
+  `localhost` sacado de `connect-src` en prod. Esto forzó a convertir 8 páginas
+  `'use client'` que eran estáticas en server-wrapper (`force-dynamic`) +
+  `XxxClient.tsx`, porque un nonce en una página prerenderizada en build no
+  coincide con el nonce del request real → el browser bloqueaba los scripts.
+  Verificado en `next build && next start` real: cero violaciones de CSP en
+  consola, login funcional, `/admin/mora` renderiza bien.
+- **30**: CSRF — mutaciones a `/api` exigen `Origin`/`Referer` propio. Verificado:
+  mismo origen → 200; origen cruzado → 403.
+
+## Decisión pendiente de tu revisión (bloque 2)
+
+- **`style-src` sigue con `'unsafe-inline'`** (a diferencia de `script-src`, que ya
+  no lo tiene). Tailwind compila a un `.css` externo, pero React genera `style={{}}`
+  inline en varios componentes (ej. la barra de progreso de `admin/mora`) y esos no
+  se pueden nonce-ar automáticamente. Si querés CSP estricta también en estilos, hay
+  que migrar esos `style={{}}` a clases y sacar el `'unsafe-inline'` de `style-src`.
 
 ---
 
