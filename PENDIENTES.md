@@ -2,6 +2,94 @@
 
 > Lista viva. Cada bloque agrega lo suyo. No borrar ítems: tacharlos (`~~...~~`) cuando se cierren.
 
+---
+
+## 📍 PARA RETOMAR LA PRÓXIMA SESIÓN (corte del 2026-09-10/11)
+
+**Estado**: Bloques 0, 1 y 2 completos y verificados contra Supabase real. Bloque 3
+recién arrancado. Bloque 4 y `PROMPT-features.md` (Fases 1-3 del ROADMAP) sin
+empezar — es la parte más grande de todo lo pedido, dimensionalo así.
+
+### Ramas (todas pusheadas a `origin`, todas sincronizadas)
+`fix/bloque-0-arranque`, `fix/bloque-1-seguridad`, `fix/bloque-2-negocio`,
+`fix/bloque-3-limpieza` (activa ahora, HEAD = `ac58074`). Ninguna tiene PR
+abierto todavía — son commits directos a cada rama, sin mergear a `master`.
+
+### Para arrancar de nuevo
+1. `git checkout fix/bloque-3-limpieza` (o crear la siguiente si ya se decidió mergear).
+2. `.env.local` ya tiene las credenciales reales (gitignored) — no hace falta
+   rehacer la conexión a Supabase. Sigue siendo el proyecto `jbikxksdignshfgnbipi`
+   (Postgres 17), y `npx supabase db query --linked -f <migracion>` sigue siendo
+   la única vía para aplicar SQL (el sandbox no tiene salida a Postgres directo).
+3. `npm run dev` / `npm run build` && `npx tsc --noEmit` && `npm run lint` para
+   confirmar que se sigue en verde antes de tocar nada (81 problems / 42 errors
+   de lint preexistentes, 0 de tsc, build OK — todo documentado abajo).
+
+### Lo último que quedó a mitad de camino (ítem 33, Bloque 3)
+Generé `src/types/database.types.ts` con `supabase gen types typescript --linked`
+(commit `ac58074`). Intenté tipar los 3 clientes (`src/lib/supabase/{client,server,admin}.ts`)
+con `SupabaseClient<Database>` para eliminar los `any` de raíz, pero **lo reverti**
+porque abrió ~20 errores de tsc reales (no ruido): la mayoría son inserts que no
+mandan `administradora_id`/`consorcio_id` porque **el trigger `set_tenant_cols` los
+completa en la DB**, y el tipo generado los marca `required` porque no sabe eso.
+Ejemplos concretos que van a reaparecer apenas alguien vuelva a intentarlo:
+- `actions/consorcios.ts`: `createEdificio`, `createUnidad`, `createPago`,
+  `createArreglo`, `updateArregloEstado` (el `Record<string, unknown>` de
+  `updateData` no tipa contra `RejectExcessProperties`).
+- `api/edificios`, `api/unidades`, `api/pagos`, `api/arreglos`,
+  `api/auth/create-propietario`: mismo patrón.
+- `actions/mora.ts:130`: `nuevoEstado` es `string`, no el enum `EstadoMora`.
+- Varios `select('estado_mora')`-like con literal `string` contra un enum literal.
+
+**Cómo resolverlo bien** (no lo hice por tiempo, no por dificultad): en vez de pelear
+tipo por tipo, definir tipos `Insert` derivados que **omitan** las columnas que
+llenan los triggers (`Omit<Database['public']['Tables']['edificios']['Insert'],
+'administradora_id' | 'consorcio_id'>`) y usar esos en las funciones que insertan
+confiando en el trigger. Para los enums (`estado`, `tipo`, `prioridad`, `rol_usuario`,
+`EstadoMora`), tipar las variables locales con el tipo del enum en vez de `string`
+en el momento en que se calculan, no en el insert.
+
+**El archivo `database.types.ts` queda commiteado y listo para usar** — sólo falta
+terminar de enchufarlo. `git stash`/`git log -p ac58074^..ac58074 -- src/lib/supabase`
+si hace falta ver exactamente qué se probó y revirtió.
+
+### Bloque 3 — lo que falta después de eso
+- **31**: `AuthGuard.tsx` ✅ borrado. Falta revisar `lib/geolocation.ts` (versión
+  async, sólo la usa `security/logger.ts` para el country code de logging — ya
+  no bloquea nada desde que se sacó el geo-blocking en el bloque 2, podría
+  simplificarse o borrarse si el country code en los logs no se considera valioso).
+- **32**: ✅ hecho (se sacó la copia muerta de `search()` en `consorcios.ts`).
+- **33**: en progreso, ver arriba. ~20-25 `any` reales quedan.
+- **34**: ✅ ya resuelto en el bloque 1 (se reescribió `recuperar-password` entera).
+- **35**: `test-api.js` — no tocado. Decidir: borrarlo o convertirlo a un test real
+  (Vitest, bloque 4) que no pegue con `service_role` contra datos reales.
+- **36**: `ecosystem.config.js` — no tocado. `cwd` hardcodeado a
+  `/home/pablo/consorcios-app` (coincide con la ruta real, pero no debería estar
+  fijo en el archivo) y arranca `next start` en vez de aprovechar
+  `output: 'standalone'` (`node .next/standalone/server.js`) — el build ya tira
+  ese warning ahora que se ve en producción.
+- **37**: `README.md` — sigue siendo el de `create-next-app` sin tocar.
+
+### Después del Bloque 3
+- **Bloque 4**: Vitest + el test de aislamiento multi-tenant (ya probado a mano
+  con `admin-a`/`admin-b`, ver más abajo — falta automatizarlo), cálculo de
+  meses de mora, máquina de estados, `safeRedirectPath`, GitHub Actions.
+- **`PROMPT-features.md` (Fases 1-3 del ROADMAP)**: no empezado. Es un producto
+  entero (cuenta corriente, importador de liquidaciones, portal del propietario,
+  reclamos, mora reescrita sobre cuenta_corriente, certificado de deuda,
+  cobranzas). El multi-tenant que pide como prerequisito (§1.1) **ya está hecho**
+  (bloque 1, ítem 15) — pero igual hay que mostrar el plan de la Fase 1 (DDL de
+  `cuenta_corriente` + `importaciones` + policies) y esperar aprobación antes de
+  escribir código, como pide el propio `PROMPT-features.md`.
+
+### Pendiente de acción del usuario
+Nada bloqueante por ahora — ya asignó su rol (`super_admin`) y ya le reseteé la
+password (`Testing1234`) a `pablo.ariel.199@gmail.com`. Push a git: el usuario
+autorizó explícitamente ("opción B") que yo pushee sin pedir permiso en cada
+commit; seguir haciéndolo.
+
+---
+
 ## Conexión a Supabase
 
 - El sandbox **sólo tiene salida HTTPS (443)** — no llega al puerto 5432 de la DB.
