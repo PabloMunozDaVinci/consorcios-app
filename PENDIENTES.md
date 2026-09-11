@@ -6,12 +6,50 @@
 
 ## 📍 PARA RETOMAR LA PRÓXIMA SESIÓN (corte del 2026-09-11, sesión 2)
 
-**Estado**: Bloques 0, 1 y 2 completos y verificados. Bloque 3 completo (31, 32,
-33-núcleo, 35, 36, 37 — ver detalle abajo). Bloque 4 (Vitest + tests + CI) y la
-auditoría RLS post-Bloque-3 quedaron corriendo en subagentes al cortar esta
-sesión — revisar sus resultados es el primer paso de la próxima. `PROMPT-features.md`
-(Fases 1-3 del ROADMAP) sigue sin empezar — es la parte más grande de todo lo
-pedido, dimensionalo así.
+**Estado**: Bloques 0-4 completos (Bloque 3 con un resto acotado y documentado
+en ítem 33; ver abajo). Auditoría RLS completa corrida y sus 5 hallazgos
+arreglados y verificados empíricamente contra Supabase real (migración 006).
+Lo único que falta de todo lo pedido hasta ahora es `PROMPT-features.md`
+(Fases 1-3 del ROADMAP) — no empezado, es la parte más grande, dimensionalo así.
+
+### Auditoría RLS (subagente `auditor-rls`, primera vez que corre) — 5 hallazgos, los 5 arreglados
+Migración `supabase/migrations/006_auditoria_rls.sql`, aplicada y verificada
+con requests reales (`admin-a`/`admin-b`) antes/después de cada fix:
+1. **Crítico**: un `admin` común podía escalarse a `super_admin` (PATCH a su
+   propia fila en `usuarios`) y a partir de ahí ver/escribir todos los tenants.
+2. **Crítico**: el bucket `mantenimiento` no scopeaba por administradora —
+   cualquier usuario podía leer/sobreescribir/borrar archivos de otro tenant
+   (el componente de upload sigue sin usarse en ninguna página, así que no
+   había objetos reales afectados, pero la policy ya estaba viva).
+3. **Alto**: `get_saldo_deudor()` (RPC) filtraba deuda de cualquier unidad de
+   cualquier tenant si se llamaba directo (no vía la app).
+4. **Alto/medio**: `evaluar_y_actualizar_mora()` (sin llamadores en `src/`,
+   resto del Bloque 0) y `rate_limit_hit()`/`rate_limits_cleanup()` eran
+   invocables por cualquier autenticado vía RPC directo — `REVOKE EXECUTE`.
+5. **Medio**: el trigger `set_tenant_cols()` tenía una rama (`edificios`)
+   asimétrica al resto que permitía colgar un edificio propio de un consorcio
+   ajeno — con `ON DELETE CASCADE`, eso significaba que otro tenant podía
+   arrastrar en cascada datos de éste al borrar su propio consorcio.
+
+No quedó nada pendiente de esta auditoría — los 5 están cerrados. Si se
+retoma el proyecto y se toca `src/actions/`, `src/app/api/` o
+`supabase/migrations/` de nuevo, correr `auditor-rls` otra vez antes de
+mergear (ver criterio en `CLAUDE.md`).
+
+### Bloque 4 (subagente `tester`) — completo
+Vitest instalado (`vitest@3.2.4`), 33 tests pasando: `safeRedirectPath` (17
+casos), máquina de estados de mora parametrizada por umbral (extraída a
+`src/lib/mora-estado.ts`, 10 casos), y 2 tests de integración contra Supabase
+real (`tests/integration/`) — aislamiento multi-tenant automatizado (el que
+antes sólo estaba verificado a mano) y el caso de regresión de 14 meses de
+`get_saldo_deudor`. `.github/workflows/ci.yml` nuevo: lint+tsc+build+tests
+unitarios siempre, tests de integración sólo si están los secrets de Supabase
+configurados en GitHub (**acción pendiente del usuario, no bloqueante**: ir a
+Settings → Secrets → Actions del repo y cargar `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` si se quiere que
+ese job corra en CI; sin eso el job se saltea solo, no rompe nada).
+Prorrateo por coeficiente: sin test porque no existe función real todavía
+(Fase 1/4 sin empezar).
 
 ### Ramas (todas pusheadas a `origin`, todas sincronizadas)
 `fix/bloque-0-arranque`, `fix/bloque-1-seguridad`, `fix/bloque-2-negocio`,
@@ -79,21 +117,7 @@ array ya tipado) — no hace falta reescribirlos a mano.
 - **36**: ✅ `ecosystem.config.js` arranca el standalone build, sin `cwd` hardcodeado.
 - **37**: ✅ `README.md` reescrito con el setup real.
 
-### Corriendo en background al cortar esta sesión — revisar primero
-1. **Subagente `auditor-rls`**: auditoría completa de `src/actions/`, `src/app/api/`
-   y `supabase/migrations/`, con foco en si `tenant-insert.ts` es realmente seguro
-   (si el trigger cubre todos los call sites que confían en él) y en el caso
-   especial de `arreglos` (unidad_id opcional). Nunca se había corrido una
-   auditoría de este tipo sobre el código actual — leer su resultado y actuar
-   sobre cualquier hallazgo ANTES de seguir con Fases del ROADMAP.
-2. **Subagente `tester`**: Bloque 4 completo — Vitest, test de aislamiento
-   multi-tenant automatizado (usando `admin-a@example.invalid`/`admin-b@example.invalid`,
-   fijando password conocida vía admin API en el `beforeAll`), meses de deuda,
-   máquina de estados de mora, `safeRedirectPath`, GitHub Actions workflow. Se le
-   pidió explícitamente NO commitear — revisar el diff a mano antes de aceptarlo
-   (es la primera vez que este subagente corre, y toca `package.json`).
-
-### Después de revisar lo anterior
+### Después de la auditoría y el Bloque 4 (ambos ya cerrados)
 - **`PROMPT-features.md` (Fases 1-3 del ROADMAP)**: no empezado. Es un producto
   entero (cuenta corriente, importador de liquidaciones, portal del propietario,
   reclamos, mora reescrita sobre cuenta_corriente, certificado de deuda,
@@ -106,7 +130,7 @@ array ya tipado) — no hace falta reescribirlos a mano.
 ### Pendiente de acción del usuario
 Nada bloqueante. Rol asignado, password reseteada, autorización de push vigente
 ("opción B"). Los secrets de Supabase no están configurados en GitHub Actions
-todavía — el workflow de CI que deja el subagente `tester` debería documentar
+todavía (ver sección del Bloque 4 más arriba) — el workflow de CI documenta
 cuáles hacen falta para que el test de aislamiento multi-tenant corra en CI (hoy
 sólo corre local, con `.env.local`).
 
