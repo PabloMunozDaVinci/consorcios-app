@@ -10,11 +10,11 @@ export const dynamic = 'force-dynamic';
 
 export default async function PagosPage() {
   const result = await getAllPagos();
-  const pagos: any[] = result.success ? result.data || [] : [];
+  const pagos = result.success ? result.data || [] : [];
 
-  const confirmados = pagos.filter((p: any) => p.estado === 'confirmado');
-  const pendientes = pagos.filter((p: any) => p.estado === 'pendiente');
-  const rechazados = pagos.filter((p: any) => p.estado === 'rechazado');
+  const confirmados = pagos.filter((p) => p.estado === 'confirmado');
+  const pendientes = pagos.filter((p) => p.estado === 'pendiente');
+  const rechazados = pagos.filter((p) => p.estado === 'rechazado');
 
   return (
     <div className="space-y-6">
@@ -58,7 +58,7 @@ export default async function PagosPage() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {pagos.map((pago: any) => (
+              {pagos.map((pago) => (
                 <tr key={pago.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 text-sm text-gray-900">
                     {pago.unidad?.numero || 'N/A'}
@@ -67,16 +67,16 @@ export default async function PagosPage() {
                     ${Number(pago.monto).toLocaleString('es-AR')}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
-                    {new Date(pago.mes_pagado).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })}
+                    {pago.mes_pagado ? new Date(pago.mes_pagado).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' }) : '-'}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500 capitalize">
                     {pago.medio_pago || '-'}
                   </td>
                   <td className="px-6 py-4">
-                    <EstadoBadge estado={pago.estado} />
+                    <EstadoBadge estado={pago.estado ?? ''} />
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
-                    {new Date(pago.fecha_pago).toLocaleDateString('es-AR')}
+                    {pago.fecha_pago ? new Date(pago.fecha_pago).toLocaleDateString('es-AR') : '-'}
                   </td>
                 </tr>
               ))}

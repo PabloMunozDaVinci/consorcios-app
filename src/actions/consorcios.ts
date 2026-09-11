@@ -10,6 +10,17 @@ import { logger } from '@/lib/logger';
 import { revalidatePath } from 'next/cache';
 import type { ActionResponse, EstadoMora, MoraStats } from '@/types';
 import type { Database } from '@/types/database.types';
+import type {
+  ConsorcioConEdificios,
+  ConsorcioConEdificiosYUnidades,
+  EdificioConUnidades,
+  UnidadConPropietario,
+  UnidadConPropietarioYEdificio,
+  UnidadConPropietarioYEdificioResumen,
+  PagoConPropietario,
+  PagoConPropietarioYUnidad,
+  ArregloConUnidad,
+} from '@/types/joins';
 
 type ConsorcioRow = Database['public']['Tables']['consorcios']['Row'];
 type EdificioRow = Database['public']['Tables']['edificios']['Row'];
@@ -22,7 +33,7 @@ type EstadoArreglo = Database['public']['Enums']['estado_arreglo'];
 // CONSORCIOS
 // =============================================================================
 
-export async function getConsorcios(): Promise<ActionResponse<any[]>> {
+export async function getConsorcios(): Promise<ActionResponse<ConsorcioConEdificios[]>> {
   try {
     const supabase = await createClient();
     logger.debug('Fetching consorcios');
@@ -44,14 +55,14 @@ export async function getConsorcios(): Promise<ActionResponse<any[]>> {
   }
 }
 
-export async function getConsorcio(id: string): Promise<ActionResponse<any>> {
+export async function getConsorcio(id: string): Promise<ActionResponse<ConsorcioConEdificiosYUnidades>> {
   try {
     const supabase = await createClient();
     logger.debug('Fetching consorcio', { id });
-    
+
     const { data, error } = await supabase
       .from('consorcios')
-      .select('*, edificios(*)')
+      .select('*, edificios(*, unidades(id))')
       .eq('id', id)
       .single();
     
@@ -115,7 +126,7 @@ export async function createConsorcio(formData: FormData): Promise<ActionRespons
 // EDIFICIOS
 // =============================================================================
 
-export async function getEdificios(consorcioId: string): Promise<ActionResponse<any[]>> {
+export async function getEdificios(consorcioId: string): Promise<ActionResponse<EdificioConUnidades[]>> {
   try {
     const supabase = await createClient();
     logger.debug('Fetching edificios', { consortiumId: consorcioId });
@@ -179,7 +190,7 @@ export async function createEdificio(formData: FormData, consorcioId: string): P
 // UNIDADES
 // =============================================================================
 
-export async function getUnidades(edificioId: string): Promise<ActionResponse<any[]>> {
+export async function getUnidades(edificioId: string): Promise<ActionResponse<UnidadConPropietario[]>> {
   try {
     const supabase = await createClient();
     
@@ -200,7 +211,7 @@ export async function getUnidades(edificioId: string): Promise<ActionResponse<an
   }
 }
 
-export async function getUnidad(id: string): Promise<ActionResponse<any>> {
+export async function getUnidad(id: string): Promise<ActionResponse<UnidadConPropietarioYEdificio>> {
   try {
     const supabase = await createClient();
     
@@ -222,7 +233,7 @@ export async function getUnidad(id: string): Promise<ActionResponse<any>> {
   }
 }
 
-export async function getAllUnidades(): Promise<ActionResponse<any[]>> {
+export async function getAllUnidades(): Promise<ActionResponse<UnidadConPropietarioYEdificioResumen[]>> {
   try {
     const supabase = await createClient();
     
@@ -350,7 +361,7 @@ export async function getAllCounts(): Promise<ActionResponse<{
 // PAGOS
 // =============================================================================
 
-export async function getPagos(unidadId: string): Promise<ActionResponse<any[]>> {
+export async function getPagos(unidadId: string): Promise<ActionResponse<PagoConPropietario[]>> {
   try {
     const supabase = await createClient();
     
@@ -372,7 +383,7 @@ export async function getPagos(unidadId: string): Promise<ActionResponse<any[]>>
   }
 }
 
-export async function getAllPagos(): Promise<ActionResponse<any[]>> {
+export async function getAllPagos(): Promise<ActionResponse<PagoConPropietarioYUnidad[]>> {
   try {
     const supabase = await createClient();
     
@@ -453,7 +464,7 @@ export async function createPago(formData: FormData, _usuarioId?: string): Promi
 // ARREGLOS
 // =============================================================================
 
-export async function getArreglos(filtros?: { unidad_id?: string; estado?: EstadoArreglo }): Promise<ActionResponse<any[]>> {
+export async function getArreglos(filtros?: { unidad_id?: string; estado?: EstadoArreglo }): Promise<ActionResponse<ArregloConUnidad[]>> {
   try {
     const supabase = await createClient();
     

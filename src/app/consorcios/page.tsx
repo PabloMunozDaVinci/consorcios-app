@@ -34,7 +34,7 @@ export default async function ConsorciosPage() {
         <EmptyState />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {consorcios.map((c: any) => (
+          {consorcios.map((c) => (
             <Link
               key={c.id}
               href={`/consorcios/${c.id}`}

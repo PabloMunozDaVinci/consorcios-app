@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, Building2, MapPin, Mail, Phone, Plus, Home, Users } from 'lucide-react';
-import { getConsorcio, getEdificios } from '@/actions/consorcios';
+import { getConsorcio } from '@/actions/consorcios';
 
 // FORZAR RENDERIZADO DINÁMICO - Sin cache
 export const dynamic = 'force-dynamic';
@@ -26,7 +26,7 @@ export default async function ConsorcioDetallePage({ params }: Props) {
   const edificios = consorcio.edificios || [];
   
   // Calcular stats
-  const totalUnidades = edificios.reduce((acc: number, e: any) => acc + (e.unidades?.length || 0), 0);
+  const totalUnidades = edificios.reduce((acc, e) => acc + (e.unidades?.length || 0), 0);
   
   return (
     <div className="space-y-6">
@@ -127,7 +127,7 @@ export default async function ConsorcioDetallePage({ params }: Props) {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {edificios.map((edificio: any) => (
+            {edificios.map((edificio) => (
               <div
                 key={edificio.id}
                 className="bg-white rounded-xl border p-6 hover:shadow-md transition-shadow"

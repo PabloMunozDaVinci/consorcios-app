@@ -13,9 +13,9 @@ export default async function MantenimientoPage() {
   const arreglos = result.success ? result.data || [] : [];
 
   // Filtrar por estado
-  const pendientes = arreglos.filter((a: any) => a.estado === 'pendiente');
-  const enProgreso = arreglos.filter((a: any) => a.estado === 'en_progreso');
-  const completados = arreglos.filter((a: any) => a.estado === 'completado');
+  const pendientes = arreglos.filter((a) => a.estado === 'pendiente');
+  const enProgreso = arreglos.filter((a) => a.estado === 'en_progreso');
+  const completados = arreglos.filter((a) => a.estado === 'completado');
 
   return (
     <div className="space-y-6">
@@ -57,7 +57,7 @@ export default async function MantenimientoPage() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {arreglos.map((arreglo: any) => (
+              {arreglos.map((arreglo) => (
                 <tr key={arreglo.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
                     <div>
@@ -69,10 +69,10 @@ export default async function MantenimientoPage() {
                     {arreglo.unidad?.numero || 'Área común'}
                   </td>
                   <td className="px-6 py-4">
-                    <EstadoBadge estado={arreglo.estado} />
+                    <EstadoBadge estado={arreglo.estado ?? ''} />
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
-                    {new Date(arreglo.fecha_solicitud).toLocaleDateString('es-AR')}
+                    {arreglo.fecha_solicitud ? new Date(arreglo.fecha_solicitud).toLocaleDateString('es-AR') : '-'}
                   </td>
                 </tr>
               ))}

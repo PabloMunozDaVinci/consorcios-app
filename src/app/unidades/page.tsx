@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import { Users, Building2, Home, Car, Box, Plus } from 'lucide-react';
 import { getAllUnidades } from '@/actions/consorcios';
+import type { UnidadConPropietarioYEdificioResumen } from '@/types/joins';
 
 // FORZAR RENDERIZADO DINÁMICO - Sin cache
 export const dynamic = 'force-dynamic';
@@ -12,9 +13,9 @@ export default async function UnidadesPage() {
   const result = await getAllUnidades();
   const unidades = result.success ? result.data || [] : [];
 
-  const deptos = unidades.filter((u: any) => u.tipo === 'depto');
-  const cocheras = unidades.filter((u: any) => u.tipo === 'cochera');
-  const bauleras = unidades.filter((u: any) => u.tipo === 'baulera');
+  const deptos = unidades.filter((u) => u.tipo === 'depto');
+  const cocheras = unidades.filter((u) => u.tipo === 'cochera');
+  const bauleras = unidades.filter((u) => u.tipo === 'baulera');
 
   return (
     <div className="space-y-6">
@@ -54,7 +55,7 @@ export default async function UnidadesPage() {
         <EmptyState />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {unidades.map((u: any) => (
+          {unidades.map((u) => (
             <UnidadCard key={u.id} unidad={u} />
           ))}
         </div>
@@ -75,12 +76,15 @@ function StatCard({ title, value, icon }: { title: string; value: number; icon: 
   );
 }
 
-function UnidadCard({ unidad }: { unidad: any }) {
+function UnidadCard({ unidad }: { unidad: UnidadConPropietarioYEdificioResumen }) {
   const icons: Record<string, React.ReactNode> = {
     depto: <Home className="w-5 h-5" />,
     cochera: <Car className="w-5 h-5" />,
     baulera: <Box className="w-5 h-5" />,
   };
+  // El embed propietario:propietarios(*) devuelve array por la dirección de
+  // la FK; en la práctica hay 0 o 1 (ver src/types/joins.ts).
+  const propietario = unidad.propietario[0];
 
   return (
     <Link href={`/unidades/${unidad.id}`} className="block bg-white rounded-xl border p-4 hover:shadow-md transition-shadow">
@@ -95,8 +99,8 @@ function UnidadCard({ unidad }: { unidad: any }) {
         <p className="text-xs text-gray-400">Coef: {unidad.coeficiente}</p>
         {unidad.es_especial && <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded-full">Especial</span>}
       </div>
-      {unidad.propietario && (
-        <p className="text-xs text-gray-500 mt-2">{unidad.propietario.apellido}, {unidad.propietario.nombre}</p>
+      {propietario && (
+        <p className="text-xs text-gray-500 mt-2">{propietario.apellido}, {propietario.nombre}</p>
       )}
     </Link>
   );

@@ -26,6 +26,11 @@ export default async function UnidadDetailPage({ params }: { params: Promise<{ i
   const pagosResult = await getPagos(id);
   const pagos = pagosResult.success ? pagosResult.data || [] : [];
 
+  // El embed propietario:propietarios(*) devuelve array por la dirección de
+  // la FK (propietarios.unidad_id -> unidades.id); en la práctica hay 0 o 1
+  // (índice único parcial, ver src/types/joins.ts).
+  const propietario = unidad.propietario[0];
+
   const icons: Record<string, React.ReactNode> = {
     depto: <Home className="w-6 h-6" />,
     cochera: <Car className="w-6 h-6" />,
@@ -69,19 +74,19 @@ export default async function UnidadDetailPage({ params }: { params: Promise<{ i
         {/* Propietario */}
         <div className="bg-white rounded-xl border p-6">
           <h2 className="font-semibold mb-4">Propietario</h2>
-          {unidad.propietario ? (
+          {propietario ? (
             <div className="space-y-3">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
                   <User className="w-5 h-5 text-green-600" />
                 </div>
                 <div>
-                  <p className="font-medium">{unidad.propietario.nombre} {unidad.propietario.apellido}</p>
-                  <p className="text-sm text-gray-500">{unidad.propietario.email}</p>
+                  <p className="font-medium">{propietario.nombre} {propietario.apellido}</p>
+                  <p className="text-sm text-gray-500">{propietario.email}</p>
                 </div>
               </div>
-              <InfoRow label="DNI" value={unidad.propietario.dni} />
-              <InfoRow label="Celular" value={unidad.propietario.celular || '-'} />
+              <InfoRow label="DNI" value={propietario.dni} />
+              <InfoRow label="Celular" value={propietario.celular || '-'} />
             </div>
           ) : (
             <p className="text-gray-500">Sin propietario registrado</p>
@@ -101,7 +106,7 @@ export default async function UnidadDetailPage({ params }: { params: Promise<{ i
           <p className="text-gray-500">No hay pagos registrados</p>
         ) : (
           <div className="space-y-2">
-            {pagos.slice(0, 5).map((pago: any) => (
+            {pagos.slice(0, 5).map((pago) => (
               <div key={pago.id} className="flex items-center justify-between py-2 border-b">
                 <div>
                   <p className="font-medium">${Number(pago.monto).toLocaleString('es-AR')}</p>

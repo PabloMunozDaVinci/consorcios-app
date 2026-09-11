@@ -4,13 +4,78 @@
 
 ---
 
-## 📍 PARA RETOMAR LA PRÓXIMA SESIÓN (corte del 2026-09-11, sesión 2)
+## 📍 PARA RETOMAR LA PRÓXIMA SESIÓN (corte del 2026-09-11, sesión 3)
 
-**Estado**: Bloques 0-4 completos (Bloque 3 con un resto acotado y documentado
-en ítem 33; ver abajo). Auditoría RLS completa corrida y sus 5 hallazgos
-arreglados y verificados empíricamente contra Supabase real (migración 006).
+**Estado**: Bloques 0-4 completos, ítem 33 (Bloque 3) cerrado del todo, CSP
+estricta también en estilos, y las 4 ramas `fix/bloque-*` ya mergeadas a
+`master` (incluye los PRs #1 y #2 que se habían mergeado por GitHub aparte).
 Lo único que falta de todo lo pedido hasta ahora es `PROMPT-features.md`
 (Fases 1-3 del ROADMAP) — no empezado, es la parte más grande, dimensionalo así.
+
+### Ítem 33 (Bloque 3) — cerrado esta sesión
+Se tiparon los paths de lectura de `src/actions/consorcios.ts` (`getConsorcios`,
+`getConsorcio`, `getEdificios`, `getUnidades`, `getUnidad`, `getAllUnidades`,
+`getPagos`, `getAllPagos`, `getArreglos`) con tipos de join a mano en
+`src/types/joins.ts` (uno por cada forma real de `.select()`, con la
+cardinalidad — array vs. objeto nullable — de cada embed documentada según la
+dirección real de la FK). Se sacaron también los ~15 `.map((x: any) => ...)`
+en las páginas que consumían esos arrays.
+
+**Dos bugs reales que el tipado sacó a la luz** (no eran evidentes con `any`,
+la DB de test no tenía datos para que se notaran a simple vista):
+1. El embed `propietario:propietarios(...)` visto DESDE `unidades` es la
+   dirección "hijo" de la FK (`propietarios.unidad_id -> unidades.id`) — Supabase
+   lo devuelve como **array**, no como objeto nullable, pese a que hay un índice
+   único parcial (migración 001) que en la práctica limita a 0 o 1 fila. Un
+   índice único parcial no alcanza para que Supabase lo detecte como
+   one-to-one (necesitaría una `UNIQUE CONSTRAINT` completa). Confirmado
+   empíricamente contra la DB real. Las páginas (`unidades/page.tsx`,
+   `unidades/[id]/page.tsx`) leían `unidad.propietario.nombre` directo, como si
+   fuera un objeto — como `[]` es *truthy* en JS, el chequeo `unidad.propietario
+   && (...)` siempre entraba y mostraba "undefined, undefined" en vez de
+   ocultar la sección o mostrar "Sin propietario registrado". Fix: extraer
+   `unidad.propietario[0]` explícitamente. Verificado en el browser (build de
+   producción real, sesión de `admin-a` real): ahora "Sin propietario
+   registrado" se muestra correctamente cuando no hay dueño.
+2. `getConsorcio` (detalle de un consorcio) seleccionaba `'*, edificios(*)'`
+   sin anidar `unidades` — la página (`consorcios/[id]/page.tsx`) hacía
+   `edificios.reduce((acc, e) => acc + (e.unidades?.length || 0), 0)` para el
+   total de unidades, que con `any` nunca tiraba error pero siempre daba 0
+   (silenciado por el optional chaining). Fix: el select ahora es
+   `'*, edificios(*, unidades(id))'` (sólo el id, alcanza para contar). Verificado
+   en el browser contra un consorcio real con 1 edificio y 1 unidad: la página
+   ahora muestra "Unidades: 1" en vez de "Unidades: 0".
+
+De paso: `getEdificios` estaba importada pero nunca usada en
+`consorcios/[id]/page.tsx` (import muerto, se sacó), y varios `estado`/fechas
+tipados como `string | null` por el schema real (nullable en la DB aunque la
+app siempre los completa) rompían contra `EstadoBadge`/`new Date()` una vez
+tipado — se resolvió con fallbacks explícitos (`?? ''`, `'-'` si es null) en
+`mantenimiento/page.tsx` y `pagos/page.tsx`. `npx tsc --noEmit` 0 errores,
+`npm run lint` bajó de 39 a 12 errores preexistentes (ninguno nuevo, todos en
+componentes cliente de formularios fuera de este alcance), `npm run build` y
+`npm test` (33/33) OK.
+
+### CSP estricta en estilos (deuda del Bloque 2, cerrada esta sesión)
+El único `style={{}}` dinámico del proyecto (barra de progreso de
+`UploadImage.tsx`, que todavía no está enchufada en ninguna página) pasó a
+clases Tailwind bucketeadas cada 5% (`progress` siempre llega en múltiplos de
+5). `style-src` en `src/proxy.ts` ya no tiene `'unsafe-inline'`. Verificado con
+build de producción real: header CSP sin `unsafe-inline` en `style-src`, sin
+violaciones de consola en `/login`, clases `w-[N%]` presentes en el CSS
+compilado.
+
+### Ramas mergeadas a `master` esta sesión
+Los 4 `fix/bloque-*` formaban una pila lineal (cada uno construido sobre el
+anterior, no sobre `master` directo) — se pudo hacer fast-forward de `master`
+a la punta de `fix/bloque-3-limpieza`. `origin/master` ya tenía los PRs #1 y #2
+mergeados por GitHub (mismo contenido, merge commits en vez de historia
+lineal) — se reconcilió con un merge commit sin conflictos (mismo contenido,
+distinto grafo). `master` local y remoto están sincronizados y al día con todo
+el trabajo de Bloques 0-4 + auditoría RLS + ítem 33 + CSP. Las ramas
+`fix/bloque-*` no se borraron (quedó a criterio tuyo). El trabajo del ítem 33
+vive en una rama nueva, `fix/item-33-tipos-lectura`, todavía sin mergear a
+`master` (ver "Para arrancar de nuevo" abajo).
 
 ### Auditoría RLS (subagente `auditor-rls`, primera vez que corre) — 5 hallazgos, los 5 arreglados
 Migración `supabase/migrations/006_auditoria_rls.sql`, aplicada y verificada
@@ -57,10 +122,12 @@ Prorrateo por coeficiente: sin test porque no existe función real todavía
 commits directos a cada rama, sin mergear a `master`.
 
 ### Para arrancar de nuevo
-1. `git checkout fix/bloque-3-limpieza` (o crear `fix/bloque-4-tests` si ya se
-   decidió mergear el 3, o si el subagente `tester` dejó cambios sin commitear
-   ahí — revisar `git status` primero, puede haber trabajo de la sesión anterior
-   sin confirmar).
+1. `master` ya tiene todo mergeado (Bloques 0-4, auditoría RLS, ítem 33 núcleo,
+   CSP). El trabajo del ítem 33 (paths de lectura) vive en
+   `fix/item-33-tipos-lectura`, creada sobre `master` — sin mergear todavía
+   (nadie lo pidió esta sesión). `git checkout master` para seguir desde ahí, o
+   `git checkout fix/item-33-tipos-lectura` si hay que retocar algo de esa rama
+   antes de mergearla.
 2. `.env.local` ya tiene las credenciales reales (gitignored) — proyecto
    `jbikxksdignshfgnbipi` (Postgres 17). `npx supabase db query --linked -f <migracion>`
    sigue siendo la única vía para aplicar SQL.
@@ -89,21 +156,11 @@ de `string`, y se corrigió un bug real en `lib/sanitize.ts` (`optionalNumber`/
 invisible mientras los inserts no estaban tipados). Ver commit con mensaje
 "feat: tipa los clientes Supabase con Database...".
 
-**Lo que queda de este ítem** (documentado, no bloqueante): ~15 `any` en los
-*paths de lectura* — `getConsorcios`, `getConsorcio`, `getUnidades`, `getUnidad`,
-`getAllUnidades`, `getPagos`, `getAllPagos`, `getArreglos` (todos en
-`actions/consorcios.ts`, devuelven `ActionResponse<any[]>`/`<any>`) y los
-componentes de página que consumen esos arrays (`unidades/page.tsx`,
-`pagos/page.tsx`, `mantenimiento/page.tsx`, `consorcios/page.tsx`, etc., con
-`.map((x: any) => ...)`). No se tocó porque tipar bien un `.select('*, edificios(*)')`
-con join requiere un tipo escrito a mano por cada select (Supabase no infiere
-solo desde el string), no es el mismo patrón repetido que los inserts. Cuando se
-retome: definir un tipo por cada forma de join real que se usa (ej.
-`ConsorcioConEdificios = ConsorcioRow & { edificios: EdificioRow[] }`) en
-`src/types/index.ts` o un archivo nuevo, tipar el return de cada `getX` con eso,
-y una vez que la acción esté tipada, la mayoría de los `.map((x: any) =>...)` en
-las páginas se arreglan solos borrando la anotación `: any` (TS infiere desde el
-array ya tipado) — no hace falta reescribirlos a mano.
+**Resto del ítem (paths de lectura) — cerrado en la sesión 3.** Ver la sección
+"Ítem 33 (Bloque 3) — cerrado esta sesión" al principio de este archivo para
+el detalle completo, incluyendo dos bugs reales que salieron a la luz al
+tipar (`propietario` como array, no objeto; conteo de unidades en 0 siempre
+en el detalle de consorcio). Los tipos de join viven en `src/types/joins.ts`.
 
 ### Bloque 3 — resto de ítems
 - **31**: ✅ `AuthGuard.tsx` borrado (sesión anterior). `lib/geolocation.ts`
@@ -111,7 +168,7 @@ array ya tipado) — no hace falta reescribirlos a mano.
   `'XX'` porque su cache nunca se poblaba. `checkAndBlockIfNeeded()` en
   `blocklist.ts` también borrada (resto del geo-blocking, sin llamadores).
 - **32**: ✅ hecho.
-- **33**: núcleo hecho, resto documentado arriba.
+- **33**: ✅ cerrado del todo en la sesión 3 (inserts + paths de lectura).
 - **34**: ✅ ya resuelto en el bloque 1.
 - **35**: ✅ `test-api.js` borrado.
 - **36**: ✅ `ecosystem.config.js` arranca el standalone build, sin `cwd` hardcodeado.
@@ -168,7 +225,8 @@ on conflict (auth_user_id) do update set rol = 'super_admin', activo = true;
 - Usuarios de prueba (podés borrarlos cuando quieras, o dejarlos para el test de aislamiento
   multi-tenant del Bloque 4): `claude-test@example.invalid` (super_admin), `admin-a@example.invalid`
   / `admin-b@example.invalid` (uno por administradora, para probar aislamiento).
-  `admin-a` tiene la contraseña cambiada a `NuevaPassA2026!` (la usé para probar recuperar-password).
+  `admin-a` tiene la contraseña cambiada a `VerifyTypes2026!` (la usé para verificar en el
+  browser el fix del ítem 33 contra un build de producción real, sesión 3).
 - 15 consorcios de test acumulados por corridas viejas de `test-api.js` y pruebas manuales
   (nombres tipo "1", "2", "Nuevo Test", "Test SA ..."), todos asignados a la administradora
   `00000000...0001` por el backfill de la migración 002. Si querés una base limpia, borralos.
