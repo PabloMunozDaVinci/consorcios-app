@@ -4,42 +4,23 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
 import { Header } from '@/components/Header';
-import { createClient } from '@/lib/supabase/client';
+import { UserProvider, useUser } from '@/hooks/useUser';
 
 // Rutas donde NO se muestra el header
 const NO_HEADER_ROUTES = ['/login', '/register', '/logout', '/recuperar-password'];
 
-export function ConditionalLayout({ children }: { children: React.ReactNode }) {
-  const supabase = createClient();
+function ConditionalLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const [showHeader, setShowHeader] = useState(false);
-  const [loading, setLoading] = useState(true);
+  // Misma fuente de verdad que el Header (ver useUser.tsx): antes acá había
+  // un getSession() propio, separado del getUser() del Header, y las dos
+  // lecturas independientes podían resolver en momentos distintos — eso
+  // producía la pantalla post-login mostrando "Iniciar sesión" con el
+  // Header ya montado. Ahora ambos leen del mismo UserProvider.
+  const { user, loading } = useUser();
 
-  useEffect(() => {
-    async function checkAuth() {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        // Mostrar header si:
-        // 1. Hay sesión Y no es ruta de auth
-        // 2. La ruta NO es pública (login, register, etc)
-        
-        const isAuthRoute = NO_HEADER_ROUTES.includes(pathname);
-        const isPublicRoute = pathname === '/' || pathname.startsWith('/login') || pathname.startsWith('/register') || pathname.startsWith('/recuperar-password');
-        
-        // Mostrar header solo si hay sesión Y estamos en ruta protegida
-        setShowHeader(!!(session?.user && !isAuthRoute));
-      } catch {
-        setShowHeader(false);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    checkAuth();
-  }, [pathname]);
+  const isAuthRoute = NO_HEADER_ROUTES.includes(pathname);
+  const showHeader = !!user && !isAuthRoute;
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">Cargando...</div>;
@@ -57,5 +38,13 @@ export function ConditionalLayout({ children }: { children: React.ReactNode }) {
         </footer>
       )}
     </div>
+  );
+}
+
+export function ConditionalLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <UserProvider>
+      <ConditionalLayoutInner>{children}</ConditionalLayoutInner>
+    </UserProvider>
   );
 }

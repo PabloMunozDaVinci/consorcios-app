@@ -1,9 +1,27 @@
 // =============================================================================
-// HOOK: useUser - usuario autenticado + rol (desde la tabla `usuarios`)
+// CONTEXTO: usuario autenticado + rol (desde la tabla `usuarios`)
 // =============================================================================
+// Antes había DOS lecturas de sesión independientes en el árbol de componentes:
+// ConditionalLayout hacía su propio getSession() (rápido, sólo local) para
+// decidir si mostraba el Header, y el Header (vía este hook) hacía su propio
+// getUser() (con round-trip real contra el servidor de Auth) para decidir qué
+// mostrar dentro de él. Al ser dos llamadas independientes sobre el mismo
+// cliente singleton, podían resolver en momentos distintos y con resultados
+// distintos según la latencia real (network jitter, refresh de token
+// concurrente) — eso es lo que producía la pantalla post-login mostrando
+// "Iniciar sesión" aunque la sesión ya estuviera activa. Ahora hay una sola
+// fuente de verdad (este Context + un único getUser()/onAuthStateChange) que
+// todo el árbol comparte.
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { createClient } from '@/lib/supabase/client';
 
 export type Rol = 'super_admin' | 'admin' | 'operador' | 'propietario';
@@ -41,7 +59,9 @@ export interface UseUserReturn {
 
 const ROLES_ADMIN: Rol[] = ['super_admin', 'admin'];
 
-export function useUser(): UseUserReturn {
+const UserContext = createContext<UseUserReturn | null>(null);
+
+export function UserProvider({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [rol, setRol] = useState<Rol | null>(null);
@@ -101,6 +121,9 @@ export function useUser(): UseUserReturn {
         setAdministradoraId(null);
         setPropietario(null);
       }
+      // Un evento de auth (SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED...) es
+      // siempre la señal definitiva de que ya sabemos el estado real.
+      if (active) setLoading(false);
     });
 
     return () => {
@@ -109,21 +132,34 @@ export function useUser(): UseUserReturn {
     };
   }, [supabase, hydrate]);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     await supabase.auth.signOut();
     setUser(null);
     setRol(null);
     setAdministradoraId(null);
     setPropietario(null);
-  };
+  }, [supabase]);
 
-  return {
-    user,
-    rol,
-    administradoraId,
-    propietario,
-    loading,
-    isAdmin: rol !== null && ROLES_ADMIN.includes(rol),
-    signOut,
-  };
+  const value = useMemo<UseUserReturn>(
+    () => ({
+      user,
+      rol,
+      administradoraId,
+      propietario,
+      loading,
+      isAdmin: rol !== null && ROLES_ADMIN.includes(rol),
+      signOut,
+    }),
+    [user, rol, administradoraId, propietario, loading, signOut]
+  );
+
+  return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
+}
+
+export function useUser(): UseUserReturn {
+  const ctx = useContext(UserContext);
+  if (!ctx) {
+    throw new Error('useUser() debe usarse dentro de <UserProvider>');
+  }
+  return ctx;
 }
