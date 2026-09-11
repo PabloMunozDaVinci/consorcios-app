@@ -3,7 +3,8 @@
 // =============================================================================
 // ACTIONS: Search - Búsqueda con Supabase
 // =============================================================================
-import { createSupabaseAdmin } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/server';
+import { requireUsuario, ROLES_GESTION } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import type { SearchResult } from '@/types';
 
@@ -13,9 +14,12 @@ export async function search(query: string): Promise<{ success: boolean; data?: 
   }
 
   try {
-    const supabase = createSupabaseAdmin();
+    const auth = await requireUsuario(ROLES_GESTION);
+    if (!auth.ok) return { success: false, error: 'Sin permiso' };
+
+    // Cliente por request: RLS acota la búsqueda a la administradora del usuario.
+    const supabase = await createClient();
     const searchTerm = `%${query}%`;
-    logger.debug('Searching', { query });
     
     const results: SearchResult[] = [];
     
@@ -73,6 +77,6 @@ export async function search(query: string): Promise<{ success: boolean; data?: 
     return { success: true, data: results.slice(0, 10) };
   } catch (error) {
     logger.error('Error search', error);
-    return { success: false, error: String(error) };
+    return { success: false, error: 'Error en la búsqueda' };
   }
 }

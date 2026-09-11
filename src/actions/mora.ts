@@ -3,19 +3,12 @@
 // =============================================================================
 // ACTIONS: Mora Workflow - Flujo de Mora Automatizado
 // =============================================================================
-import { createSupabaseAdmin } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/server';
+import { requireUsuario, ROLES_GESTION } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 
 // NOTA: Descomenta cuando tengas Resend configurado
 // import { Resend } from 'resend';
-
-function getSupabase() {
-  const supabase = createSupabaseAdmin();
-  if (!supabase) {
-    throw new Error('Supabase no configurado');
-  }
-  return supabase;
-}
 
 // =============================================================================
 // CONSTANTS
@@ -79,7 +72,14 @@ export async function evaluarYEnviarMora(): Promise<{
   let procesadas = 0;
 
   try {
-    const supabase = getSupabase();
+    // Control de acceso DENTRO del action: sólo gestión (no propietarios).
+    const auth = await requireUsuario(ROLES_GESTION);
+    if (!auth.ok) {
+      return { success: false, procesadas: 0, emails_enviados: 0, errores: ['Sin permiso'] };
+    }
+
+    // Cliente por request: RLS acota `unidades` / `mora_logs` a la administradora.
+    const supabase = await createClient();
 
     const { data: unidades } = await supabase
       .from('unidades')
@@ -182,18 +182,21 @@ export async function evaluarYEnviarMora(): Promise<{
 
 export async function getHistorialMora(unidadId: string) {
   try {
-    const supabase = getSupabase();
-    
+    const auth = await requireUsuario(ROLES_GESTION);
+    if (!auth.ok) return { success: false, error: 'Sin permiso' };
+
+    const supabase = await createClient();
+
     const { data, error } = await supabase
       .from('mora_logs')
       .select('*, propietario:propietarios(nombre, apellido)')
       .eq('unidad_id', unidadId)
       .order('created_at', { ascending: false });
-    
+
     if (error) throw error;
-    
+
     return { success: true, data };
-  } catch (error) {
-    return { success: false, error: String(error) };
+  } catch {
+    return { success: false, error: 'No se pudo obtener el historial' };
   }
 }

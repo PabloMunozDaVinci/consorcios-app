@@ -1,32 +1,24 @@
 // =============================================================================
 // API: Health Check
 // =============================================================================
-import { createSupabaseAdmin } from '@/lib/supabase';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
 
 export async function GET() {
   const checks = {
     status: 'ok',
     timestamp: new Date().toISOString(),
-    uptime: process.uptime?.() || 'unknown',
-    memory: 'unknown',
     services: {} as Record<string, string>,
   };
 
-  // Check memory
-  if (typeof process.memoryUsage === 'function') {
-    const mem = process.memoryUsage();
-    checks.memory = `${Math.round(mem.heapUsed / 1024 / 1024)}MB / ${Math.round(mem.heapTotal / 1024 / 1024)}MB`;
-  }
-
-  // Check Supabase connection
+  // Check Supabase connection (sin exponer detalles internos)
   try {
-    const supabase = createSupabaseAdmin();
+    const supabase = createAdminClient();
     const { error } = await supabase.from('consorcios').select('id').limit(1);
-    
-    checks.services.supabase = error ? `error: ${error.message}` : 'connected';
-  } catch (err: any) {
-    checks.services.supabase = `error: ${err.message}`;
+    checks.services.supabase = error ? 'error' : 'connected';
+    if (error) checks.status = 'degraded';
+  } catch {
+    checks.services.supabase = 'error';
     checks.status = 'degraded';
   }
 

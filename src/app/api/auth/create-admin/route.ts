@@ -1,92 +1,84 @@
 // =============================================================================
-// API: Create Admin User
+// API: Create Admin User (bootstrap, gateado por ADMIN_CREATE_SECRET)
 // =============================================================================
-// Crea un administrador (sin unidad_id = es admin)
-// Usa email invitation - el usuario configura su password desde el email
-import { createSupabaseAdmin } from '@/lib/supabase';
+// Crea un usuario de auth + su fila en `usuarios` con rol admin/super_admin,
+// ligado a una administradora. NO crea fila en `propietarios`.
+import { createAdminClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import { getAdminCreateSecret, secretMatches, generateTempPassword } from '@/lib/admin-secret';
+import type { Rol } from '@/lib/auth';
+
+const ROLES_ADMIN: Rol[] = ['admin', 'super_admin'];
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { email, nombre, sendInvitation, secret } = body;
+    const rol: Rol = ROLES_ADMIN.includes(body.rol) ? body.rol : 'admin';
+    let administradoraId: string | undefined = body.administradora_id;
 
-    // Secret para proteger el endpoint (sin fallback; comparación en tiempo constante)
     if (!secretMatches(secret, getAdminCreateSecret())) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     if (!email || !nombre) {
-      return Response.json({ 
-        success: false, 
-        error: 'email y nombre son requeridos' 
-      }, { status: 400 });
+      return Response.json({ success: false, error: 'email y nombre son requeridos' }, { status: 400 });
     }
 
-    const supabase = createSupabaseAdmin();
+    const supabase = createAdminClient();
 
-    // Generar password temporal aleatorio
+    // Resolver la administradora: la del body, o la única existente.
+    if (!administradoraId) {
+      const { data: admins } = await supabase.from('administradoras').select('id').limit(2);
+      if (!admins || admins.length === 0) {
+        return Response.json({ success: false, error: 'No hay ninguna administradora. Creá una primero.' }, { status: 400 });
+      }
+      if (admins.length > 1) {
+        return Response.json({ success: false, error: 'Hay varias administradoras; indicá administradora_id.' }, { status: 400 });
+      }
+      administradoraId = admins[0].id;
+    }
+
     const tempPassword = generateTempPassword();
 
-    // 1. Create auth user
+    // 1. Auth user
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
       password: tempPassword,
-      email_confirm: true, // Auto-confirmar para que pueda login inmediatamente
+      email_confirm: true,
     });
-
-    if (authError) {
+    if (authError || !authData.user) {
       logger.error('Error creating admin auth', authError);
-      return Response.json({ success: false, error: authError.message }, { status: 500 });
+      return Response.json({ success: false, error: 'No se pudo crear el usuario' }, { status: 500 });
     }
 
-    if (!authData.user) {
-      return Response.json({ success: false, error: 'Error creando usuario' }, { status: 500 });
-    }
-
-    // 2. Create propietario admin (sin unidad = es admin)
-    const { error: propError } = await supabase
-      .from('propietarios')
-      .insert({
-        auth_user_id: authData.user.id,
-        nombre,
-        apellido: 'Admin',
-        dni: '00000000',
-        email,
-        telefono: null,
-        // NO setear unidad_id = es admin
-      });
-
-    if (propError) {
-      // Rollback auth user
+    // 2. Fila en usuarios
+    const { error: usuarioError } = await supabase.from('usuarios').insert({
+      auth_user_id: authData.user.id,
+      administradora_id: administradoraId,
+      rol,
+      activo: true,
+    });
+    if (usuarioError) {
       await supabase.auth.admin.deleteUser(authData.user.id);
-      logger.error('Error creating admin propietario', propError);
-      return Response.json({ success: false, error: propError.message }, { status: 500 });
+      logger.error('Error creating usuarios row', usuarioError);
+      return Response.json({ success: false, error: 'No se pudo crear el usuario' }, { status: 500 });
     }
 
-    // 3. Si sendInvitation=true, enviar email de invitación para cambiar password
     if (sendInvitation) {
-      // Enviar email de reset para que el usuario configure su password
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/recuperar-password`,
       });
-      
-      if (resetError) {
-        logger.warn('Could not send invitation email', { error: resetError.message });
-        // No fallamos - el usuario igual fue creado
-      }
+      if (resetError) logger.warn('Could not send invitation email');
     }
 
-    logger.info('Admin created', { email, userId: authData.user.id, sendInvitation });
+    logger.info('Admin created', { userId: authData.user.id, rol, sendInvitation });
 
-    return Response.json({ 
-      success: true, 
-      message: sendInvitation 
-        ? 'Admin creado. Se envió email de invitación.' 
-        : 'Admin creado',
+    return Response.json({
+      success: true,
+      message: sendInvitation ? 'Admin creado. Se envió email de invitación.' : 'Admin creado',
       userId: authData.user.id,
-      tempPassword: sendInvitation ? null : tempPassword
+      tempPassword: sendInvitation ? null : tempPassword,
     });
   } catch (err) {
     logger.error('Exception creating admin', err);

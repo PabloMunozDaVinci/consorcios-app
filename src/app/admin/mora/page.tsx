@@ -1,9 +1,11 @@
 // =============================================================================
 // PAGE: Admin Mora - Gestión de Mora
 // =============================================================================
+import { redirect } from 'next/navigation';
 import { Users, Play, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 import { evaluarYEnviarMora } from '@/actions/mora';
 import { getMoraStats } from '@/actions/consorcios';
+import { getUsuario, ROLES_GESTION } from '@/lib/auth';
 import type { MoraStats } from '@/types';
 
 // Las stats se consultan por request (no prerender en build).
@@ -19,6 +21,11 @@ const STATS_VACIAS: MoraStats = {
 };
 
 export default async function MoraPage() {
+  const usuario = await getUsuario();
+  if (!usuario || !ROLES_GESTION.includes(usuario.rol)) {
+    redirect('/');
+  }
+
   const statsResult = await getMoraStats();
   const stats: MoraStats = statsResult.success && statsResult.data ? statsResult.data : STATS_VACIAS;
 

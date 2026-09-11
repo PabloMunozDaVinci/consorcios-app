@@ -36,14 +36,15 @@ export function AuthGuard({ children, requireAdmin = false }: AuthGuardProps) {
           return;
         }
 
-        // Get user role from propietarios table
-        const { data: propietario } = await supabase
-          .from('propietarios')
-          .select('unidad_id')
+        // Rol desde la tabla usuarios (no del hack unidad_id IS NULL).
+        const { data: usuario } = await supabase
+          .from('usuarios')
+          .select('rol')
           .eq('auth_user_id', session.user.id)
-          .single();
+          .eq('activo', true)
+          .maybeSingle();
 
-        const isAdmin = !propietario?.unidad_id;
+        const isAdmin = usuario?.rol === 'admin' || usuario?.rol === 'super_admin';
 
         // Check admin requirement
         if (requireAdmin && !isAdmin) {
@@ -52,8 +53,7 @@ export function AuthGuard({ children, requireAdmin = false }: AuthGuardProps) {
         }
 
         setAuthorized(true);
-      } catch (error) {
-        console.error('Auth check error:', error);
+      } catch {
         router.push(`/login?redirect=${pathname}`);
       } finally {
         setLoading(false);
