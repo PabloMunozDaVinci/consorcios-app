@@ -9,6 +9,23 @@ import { useState, useRef } from 'react';
 import { Upload, X, Loader2, Check } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
+// Clases estáticas (no template strings) para que el content-scanner de
+// Tailwind las incluya en el build — así la barra de progreso no necesita
+// `style={{ width }}` inline y el CSP puede sacar 'unsafe-inline' de
+// style-src (ver src/proxy.ts, buildCSP). progress siempre llega en
+// múltiplos de 5 (10/50/60/80/100), así que el redondeo es exacto.
+const WIDTH_CLASSES = [
+  'w-[0%]', 'w-[5%]', 'w-[10%]', 'w-[15%]', 'w-[20%]',
+  'w-[25%]', 'w-[30%]', 'w-[35%]', 'w-[40%]', 'w-[45%]',
+  'w-[50%]', 'w-[55%]', 'w-[60%]', 'w-[65%]', 'w-[70%]',
+  'w-[75%]', 'w-[80%]', 'w-[85%]', 'w-[90%]', 'w-[95%]', 'w-[100%]',
+];
+
+function widthClassForProgress(progress: number): string {
+  const idx = Math.min(20, Math.max(0, Math.round(progress / 5)));
+  return WIDTH_CLASSES[idx];
+}
+
 interface UploadImageProps {
   bucket: string;
   path: string;
@@ -223,7 +240,7 @@ export function UploadImage({
                   <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-2" />
                   <p className="text-sm text-gray-500">Subiendo {progress}%...</p>
                   <div className="w-full h-2 bg-gray-200 rounded-full mt-2 overflow-hidden">
-                    <div className="h-full bg-blue-500 transition-all" style={{ width: `${progress}%` }} />
+                    <div className={`h-full bg-blue-500 transition-all ${widthClassForProgress(progress)}`} />
                   </div>
                 </>
               ) : (

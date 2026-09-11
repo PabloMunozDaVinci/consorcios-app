@@ -252,7 +252,7 @@ function buildCSP(nonce: string): string {
   const csp = [
     `default-src 'self'`,
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ''}`,
-    `style-src 'self' 'unsafe-inline'`, // Tailwind no usa nonce; ver PENDIENTES.md
+    `style-src 'self'`, // sin 'unsafe-inline': el único style={{}} dinámico (UploadImage) pasó a clases Tailwind
     `img-src 'self' data: https:`,
     `font-src 'self'`,
     `connect-src ${connectSrc.join(' ')}`,
