@@ -19,7 +19,7 @@ export default function NuevoEdificioPage({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [createdData, setCreatedData] = useState<any>(null);
+  const [createdData, setCreatedData] = useState<{ nombre: string } | null>(null);
 
   useEffect(() => {
     params.then(p => setConsorcioId(p.id));
@@ -96,7 +96,7 @@ export default function NuevoEdificioPage({
             <p className="font-bold text-lg">¡Edificio creado exitosamente!</p>
             {createdData && (
               <p className="text-sm mt-1 opacity-80">
-                "{createdData.nombre}"
+                &quot;{createdData.nombre}&quot;
               </p>
             )}
             <p className="text-sm mt-2">Redirigiendo...</p>

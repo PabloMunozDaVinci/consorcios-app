@@ -15,7 +15,7 @@ export default function NuevoConsorcioPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [createdData, setCreatedData] = useState<any>(null);
+  const [createdData, setCreatedData] = useState<{ nombre: string; direccion: string } | null>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -94,7 +94,7 @@ export default function NuevoConsorcioPage() {
             <p className="font-bold text-lg">¡Consorcio creado exitosamente!</p>
             {createdData && (
               <p className="text-sm mt-1 opacity-80">
-                "{createdData.nombre}" - {createdData.direccion}
+                &quot;{createdData.nombre}&quot; - {createdData.direccion}
               </p>
             )}
             <p className="text-sm mt-2">Redirigiendo a la lista en 2 segundos...</p>
@@ -330,7 +330,7 @@ export default function NuevoConsorcioPage() {
               <option value="Mayor Luis J. Fontana">Mayor Luis J. Fontana</option>
               <option value="Norte">Norte</option>
               <option value="Nueve de Julio">Nueve de Julio</option>
-              <option value="O'Higgins">O'Higgins</option>
+              <option value="O'Higgins">O&apos;Higgins</option>
               <option value="Presidencia de la Plaza">Presidencia de la Plaza</option>
               <option value="Primero de Mayo">Primero de Mayo</option>
               <option value="Quitilipi">Quitilipi</option>

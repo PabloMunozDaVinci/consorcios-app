@@ -36,7 +36,7 @@ export default function NuevaUnidadPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [createdData, setCreatedData] = useState<any>(null);
+  const [createdData, setCreatedData] = useState<{ numero: string; piso: number } | null>(null);
   const [loadingEdificios, setLoadingEdificios] = useState(true);
 
   // Cargar edificios al iniciar

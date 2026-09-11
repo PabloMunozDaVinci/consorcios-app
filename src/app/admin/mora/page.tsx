@@ -127,7 +127,7 @@ export default async function MoraPage() {
             {/* Rows van a completar cuando haya datos */}
             <tr>
               <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                No hay morosos detectados. Ejecutá "Evaluar Mora" para actualizar.
+                No hay morosos detectados. Ejecutá &quot;Evaluar Mora&quot; para actualizar.
               </td>
             </tr>
           </tbody>

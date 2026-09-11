@@ -28,7 +28,7 @@ export default function Loading() {
           ))}
         </div>
         {Array(5).fill(0).map((_, i) => (
-          <div className="px-6 py-4 border-b grid grid-cols-4 gap-4">
+          <div key={i} className="px-6 py-4 border-b grid grid-cols-4 gap-4">
             <div className="h-5 w-full bg-gray-50 rounded animate-pulse" />
             <div className="h-5 w-16 bg-gray-50 rounded animate-pulse" />
             <div className="h-6 w-20 bg-gray-50 rounded animate-pulse" />

@@ -12,6 +12,26 @@ estricta también en estilos, y las 4 ramas `fix/bloque-*` ya mergeadas a
 Lo único que falta de todo lo pedido hasta ahora es `PROMPT-features.md`
 (Fases 1-3 del ROADMAP) — no empezado, es la parte más grande, dimensionalo así.
 
+### Lint — 12 errores preexistentes, cerrado esta sesión
+Los 4 `@typescript-eslint/no-explicit-any` (catch-blocks de los formularios de
+alta), 7 `react/no-unescaped-entities` y 1 `react/jsx-key` se arreglaron.
+`npm run lint` → 0 errores (32 warnings preexistentes sin tocar, ninguno
+afecta type-safety). `npx tsc --noEmit` 0 errores, `npm run build` OK,
+`npm test` 33/33 OK.
+
+**Bug real que salió al revisar el fix de los `any`**: un intento mecánico
+anterior había tipado los 4 `useState` de `createdData` como `useState<unknown>`
+en vez de `any` — compila en lint pero rompe `tsc` (`Type 'unknown' is not
+assignable to type 'ReactNode'`, `Property 'nombre' does not exist on type
+'{}'`) porque el JSX de éxito sigue leyendo `createdData.nombre` /
+`.numero`/`.piso` después. `unknown` no es un fix válido para "saqué el
+`any`" si algo después accede a una propiedad — hace falta el tipo mínimo real.
+Se tipó cada uno con la forma concreta que usa (`{ nombre: string }`,
+`{ numero: string; piso: number }`, etc.) en `unidades/nueva/NuevaUnidadPageClient.tsx`,
+`consorcios/[id]/edificio/nuevo/page.tsx`,
+`consorcios/[id]/edificio/[edificioId]/unidad/nueva/page.tsx` y
+`consorcios/nuevo/NuevoConsorcioPageClient.tsx`.
+
 ### Ítem 33 (Bloque 3) — cerrado esta sesión
 Se tiparon los paths de lectura de `src/actions/consorcios.ts` (`getConsorcios`,
 `getConsorcio`, `getEdificios`, `getUnidades`, `getUnidad`, `getAllUnidades`,
