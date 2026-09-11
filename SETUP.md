@@ -207,7 +207,7 @@ pm2 startup            # ejecutar el comando que imprime, para arranque automát
 pm2 logs consorcios-app
 ```
 
-**nginx delante** (necesario: el middleware confía en `x-forwarded-for` y sin un proxy que lo reescriba el rate limiting es spoofeable — `CONTEXT.md` §6.7):
+**nginx delante** (necesario: el proxy confía en `x-real-ip` — spoofeable si no hay un proxy delante que lo setee él mismo; `CONTEXT.md` §6.7, resuelto en el bloque 2):
 
 ```nginx
 server {
