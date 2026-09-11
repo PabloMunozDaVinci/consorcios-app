@@ -3,6 +3,7 @@
 // =============================================================================
 import { createClient } from '@/lib/supabase/server';
 import { requireUsuario, ROLES_GESTION } from '@/lib/auth';
+import { createEdificioSchema, validateInput, badRequest } from '@/lib/sanitize';
 import { logger } from '@/lib/logger';
 import { revalidatePath } from 'next/cache';
 
@@ -42,15 +43,9 @@ export async function POST(request: Request) {
     const auth = await requireUsuario(ROLES_GESTION);
     if (!auth.ok) return auth.response;
 
-    const body = await request.json();
-    const { nombre, direccion, pisos, unidades_por_piso, consortium_id } = body;
-
-    if (!nombre || !consortium_id) {
-      return Response.json({
-        success: false,
-        error: 'Nombre y consortium_id son obligatorios'
-      }, { status: 400 });
-    }
+    const parsed = validateInput(createEdificioSchema, await request.json());
+    if (!parsed.ok) return badRequest(parsed.errors);
+    const { nombre, direccion, pisos, unidades_por_piso, consortium_id } = parsed.data;
 
     const supabase = await createClient();
 

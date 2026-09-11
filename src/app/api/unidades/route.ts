@@ -3,6 +3,7 @@
 // =============================================================================
 import { createClient } from '@/lib/supabase/server';
 import { requireUsuario, ROLES_GESTION } from '@/lib/auth';
+import { createUnidadSchema, validateInput, badRequest } from '@/lib/sanitize';
 import { logger } from '@/lib/logger';
 import { revalidatePath } from 'next/cache';
 
@@ -64,15 +65,9 @@ export async function POST(request: Request) {
     const auth = await requireUsuario(ROLES_GESTION);
     if (!auth.ok) return auth.response;
 
-    const body = await request.json();
-    const { building_id, numero, piso, tipo, coeficiente, es_especial, habitada } = body;
-
-    if (!building_id || !numero) {
-      return Response.json({
-        success: false,
-        error: 'building_id y numero son obligatorios'
-      }, { status: 400 });
-    }
+    const parsed = validateInput(createUnidadSchema, await request.json());
+    if (!parsed.ok) return badRequest(parsed.errors);
+    const { building_id, numero, piso, tipo, coeficiente, es_especial, habitada } = parsed.data;
 
     const supabase = await createClient();
 

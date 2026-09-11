@@ -6,25 +6,19 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import { getAdminCreateSecret, secretMatches, generateTempPassword } from '@/lib/admin-secret';
+import { createPropietarioSchema, validateInput, badRequest } from '@/lib/sanitize';
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { email, nombre, apellido, dni, telefono, unidad_id, sendInvitation, secret } = body;
+    const body = await request.json().catch(() => ({}));
 
-    if (!secretMatches(secret, getAdminCreateSecret())) {
+    if (!secretMatches(body?.secret, getAdminCreateSecret())) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const errores: string[] = [];
-    if (!email) errores.push('email es requerido');
-    if (!nombre) errores.push('nombre es requerido');
-    if (!apellido) errores.push('apellido es requerido');
-    if (!dni) errores.push('dni es requerido');
-    if (!unidad_id) errores.push('unidad_id es requerido');
-    if (errores.length > 0) {
-      return Response.json({ success: false, error: errores.join(', ') }, { status: 400 });
-    }
+    const parsed = validateInput(createPropietarioSchema, body);
+    if (!parsed.ok) return badRequest(parsed.errors);
+    const { email, nombre, apellido, dni, telefono, unidad_id, sendInvitation } = parsed.data;
 
     const supabase = createAdminClient();
 

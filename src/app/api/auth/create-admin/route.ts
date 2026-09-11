@@ -6,24 +6,20 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logger } from '@/lib/logger';
 import { getAdminCreateSecret, secretMatches, generateTempPassword } from '@/lib/admin-secret';
-import type { Rol } from '@/lib/auth';
-
-const ROLES_ADMIN: Rol[] = ['admin', 'super_admin'];
+import { createAdminSchema, validateInput, badRequest } from '@/lib/sanitize';
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { email, nombre, sendInvitation, secret } = body;
-    const rol: Rol = ROLES_ADMIN.includes(body.rol) ? body.rol : 'admin';
-    let administradoraId: string | undefined = body.administradora_id;
+    const body = await request.json().catch(() => ({}));
 
-    if (!secretMatches(secret, getAdminCreateSecret())) {
+    if (!secretMatches(body?.secret, getAdminCreateSecret())) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!email || !nombre) {
-      return Response.json({ success: false, error: 'email y nombre son requeridos' }, { status: 400 });
-    }
+    const parsed = validateInput(createAdminSchema, body);
+    if (!parsed.ok) return badRequest(parsed.errors);
+    const { email, nombre, sendInvitation, rol = 'admin' } = parsed.data;
+    let administradoraId: string | undefined = parsed.data.administradora_id;
 
     const supabase = createAdminClient();
 
@@ -46,6 +42,7 @@ export async function POST(request: Request) {
       email,
       password: tempPassword,
       email_confirm: true,
+      user_metadata: { nombre },
     });
     if (authError || !authData.user) {
       logger.error('Error creating admin auth', authError);

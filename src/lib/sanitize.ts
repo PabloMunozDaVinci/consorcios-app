@@ -196,7 +196,9 @@ export const createAdminSchema = z.object({
   email: z.string().email(),
   nombre: z.string().min(1).max(100),
   sendInvitation: z.boolean().optional(),
-  secret: z.string(),
+  secret: z.string().min(1),
+  administradora_id: z.string().uuid().optional(),
+  rol: z.enum(['admin', 'super_admin']).optional(),
 });
 
 // Schema for creating propietario
@@ -205,10 +207,10 @@ export const createPropietarioSchema = z.object({
   nombre: z.string().min(1).max(100),
   apellido: z.string().min(1).max(100),
   dni: z.string().min(1).max(20),
-  telefono: z.string().max(20).optional(),
+  telefono: z.preprocess((v) => (v === '' || v == null ? undefined : v), z.string().max(20).optional()),
   unidad_id: z.string().uuid(),
   sendInvitation: z.boolean().optional(),
-  secret: z.string(),
+  secret: z.string().min(1),
 });
 
 // Schema for reset password
@@ -222,30 +224,46 @@ export const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+// Los formularios mandan strings (y "" para los vacíos). Estos helpers los
+// normalizan antes de validar.
+const optionalText = (max: number) =>
+  z.preprocess((v) => (v === '' || v == null ? undefined : v), z.string().max(max).optional());
+const optionalNumber = (schema: z.ZodTypeAny) =>
+  z.preprocess((v) => (v === '' || v == null ? undefined : Number(v)), schema.optional());
+const requiredNumber = (schema: z.ZodTypeAny) =>
+  z.preprocess((v) => (v === '' || v == null ? NaN : Number(v)), schema);
+const optionalBool = z.preprocess(
+  (v) => (v === 'true' || v === true ? true : v === 'false' || v === false ? false : undefined),
+  z.boolean().optional()
+);
+
 // Schema for create pago
 export const createPagoSchema = z.object({
   unidad_id: z.string().uuid(),
-  monto: z.string().transform(Number).pipe(z.number().positive()),
+  monto: requiredNumber(z.number().positive()),
   mes_pagado: z.string().regex(/^\d{4}-\d{2}$/),
   medio_pago: z.enum(['transferencia', 'rapipago', 'boca', 'tarjeta']).optional(),
-  nro_comprobante: z.string().max(100).optional(),
+  nro_comprobante: optionalText(100),
 });
 
 // Schema for create consorcio
 export const createConsorcioSchema = z.object({
   nombre: z.string().min(1).max(255),
   direccion: z.string().min(1).max(500),
-  ciudad: z.string().max(100).optional(),
-  email_admin: z.string().email().optional(),
-  telefono: z.string().max(20).optional(),
+  ciudad: optionalText(100),
+  email_admin: z.preprocess(
+    (v) => (v === '' || v == null ? undefined : v),
+    z.string().email().optional()
+  ),
+  telefono: optionalText(20),
 });
 
 // Schema for create edificio
 export const createEdificioSchema = z.object({
   nombre: z.string().min(1).max(255),
-  direccion: z.string().max(500).optional(),
-  pisos: z.number().int().positive().max(100).optional(),
-  unidades_por_piso: z.number().int().positive().max(20).optional(),
+  direccion: optionalText(500),
+  pisos: optionalNumber(z.number().int().positive().max(100)),
+  unidades_por_piso: optionalNumber(z.number().int().positive().max(20)),
   consortium_id: z.string().uuid(),
 });
 
@@ -253,21 +271,24 @@ export const createEdificioSchema = z.object({
 export const createUnidadSchema = z.object({
   building_id: z.string().uuid(),
   numero: z.string().min(1).max(20),
-  piso: z.number().int().min(0).max(100).optional(),
+  piso: optionalNumber(z.number().int().min(0).max(100)),
   tipo: z.enum(['depto', 'cochera', 'baulera']).optional(),
-  coeficiente: z.number().positive().max(10).optional(),
-  es_especial: z.boolean().optional(),
-  habitada: z.boolean().optional(),
+  coeficiente: optionalNumber(z.number().positive().max(10)),
+  es_especial: optionalBool,
+  habitada: optionalBool,
 });
 
 // Schema for create arreglo
 export const createArregloSchema = z.object({
   titulo: z.string().min(1).max(255),
-  descripcion: z.string().max(2000).optional(),
-  unidad_id: z.string().uuid().optional(),
+  descripcion: optionalText(2000),
+  unidad_id: z.preprocess(
+    (v) => (v === '' || v == null ? undefined : v),
+    z.string().uuid().optional()
+  ),
   prioridad: z.enum(['baja', 'media', 'alta']).optional(),
-  presupuesto: z.number().positive().optional(),
-  es_area_comun: z.boolean().optional(),
+  presupuesto: optionalNumber(z.number().positive()),
+  es_area_comun: optionalBool,
 });
 
 // Type exports
@@ -281,16 +302,33 @@ export type CreateEdificioInput = z.infer<typeof createEdificioSchema>;
 export type CreateUnidadInput = z.infer<typeof createUnidadSchema>;
 export type CreateArregloInput = z.infer<typeof createArregloSchema>;
 
+export type FieldErrors = Record<string, string>;
+
+export type ValidationResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; errors: FieldErrors };
+
 /**
- * Validate input with a schema
+ * Valida `input` contra `schema`. En caso de error devuelve un mapa
+ * campo -> mensaje, sin filtrar nada del backend.
  */
-export function validateInput<T>(schema: z.ZodSchema<T>, input: unknown): T | null {
-  try {
-    return schema.parse(input);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      console.error('Validation error:', error.issues);
-    }
-    return null;
+export function validateInput<T>(
+  schema: z.ZodType<T>,
+  input: unknown
+): ValidationResult<T> {
+  const parsed = schema.safeParse(input);
+  if (parsed.success) {
+    return { ok: true, data: parsed.data };
   }
+  const errors: FieldErrors = {};
+  for (const issue of parsed.error.issues) {
+    const key = issue.path.length > 0 ? issue.path.join('.') : '_';
+    if (!errors[key]) errors[key] = issue.message;
+  }
+  return { ok: false, errors };
+}
+
+/** Response 400 estándar con errores de campo. */
+export function badRequest(errors: FieldErrors): Response {
+  return Response.json({ success: false, error: 'Datos inválidos', errores: errors }, { status: 400 });
 }

@@ -3,6 +3,7 @@
 // =============================================================================
 import { createClient } from '@/lib/supabase/server';
 import { requireUsuario, ROLES_GESTION } from '@/lib/auth';
+import { createPagoSchema, validateInput, badRequest } from '@/lib/sanitize';
 import { logger } from '@/lib/logger';
 import { revalidatePath } from 'next/cache';
 
@@ -11,17 +12,9 @@ export async function POST(request: Request) {
     const auth = await requireUsuario(ROLES_GESTION);
     if (!auth.ok) return auth.response;
 
-    const body = await request.json();
-    const { unidad_id, monto, mes_pagado, medio_pago, nro_comprobante } = body;
-
-    const errores: string[] = [];
-    if (!unidad_id || unidad_id === '') errores.push('Selecciona una unidad');
-    if (!monto || monto === '' || parseFloat(monto) <= 0) errores.push('Ingresa un monto válido');
-    if (!mes_pagado || mes_pagado === '') errores.push('Selecciona el mes a pagar');
-
-    if (errores.length > 0) {
-      return Response.json({ success: false, error: errores.join('. ') }, { status: 400 });
-    }
+    const parsed = validateInput(createPagoSchema, await request.json());
+    if (!parsed.ok) return badRequest(parsed.errors);
+    const { unidad_id, monto, mes_pagado, medio_pago, nro_comprobante } = parsed.data;
 
     const supabase = await createClient();
 
@@ -47,7 +40,7 @@ export async function POST(request: Request) {
       .insert({
         unidad_id,
         propietario_id,
-        monto: parseFloat(monto),
+        monto,
         mes_pagado: mesCompleto,
         fecha_pago: new Date().toISOString().split('T')[0],
         medio_pago: medio_pago || 'transferencia',
