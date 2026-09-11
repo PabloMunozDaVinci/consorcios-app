@@ -5,7 +5,6 @@
 
 import { createSupabaseAdmin } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
-import { getCountryCode } from '@/lib/geolocation';
 
 export type SecurityEventType = 
   | 'login_success'
@@ -46,8 +45,8 @@ export async function logSecurityEvent(event: SecurityEvent): Promise<void> {
     details: event.details,
   });
 
-  // Get country code if not provided
-  const countryCode = event.country_code || getCountryCode(event.ip_address);
+  // Get country code if not provided (default to 'XX' - no geolocation service)
+  const countryCode = event.country_code || 'XX';
 
   try {
     const supabase = createSupabaseAdmin();
@@ -118,7 +117,7 @@ export async function logIPBlocked(
   reason: 'geo_block' | 'rate_limit' | 'brute_force',
   details?: Record<string, unknown>
 ): Promise<void> {
-  const countryCode = getCountryCode(ip);
+  const countryCode = 'XX';
   
   await logSecurityEvent({
     event_type: 'blocked_ip',

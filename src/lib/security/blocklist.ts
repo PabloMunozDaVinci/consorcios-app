@@ -219,27 +219,6 @@ export async function checkRateLimitDB(
 }
 
 /**
- * Check if IP should be blocked due to rate limiting
- * Rules:
- * - >5 failed logins = block for 15 min
- * - >20 attempts in a day (any type) = block for 24 hours
- */
-export async function checkAndBlockIfNeeded(ip: string, countryCode: string): Promise<boolean> {
-  // Check failed login attempts (for brute force)
-  // This would need to query security_logs
-  // For now, we'll use blocked_ips attempts_count
-  
-  const blocked = await isIPBlocked(ip);
-  if (blocked) {
-    return true;
-  }
-  
-  // For now, not blocking based on this in middleware
-  // The actual blocking happens in middleware based on events
-  return false;
-}
-
-/**
  * Get all blocked IPs (for admin panel)
  */
 export async function getAllBlockedIPs(): Promise<BlockedIP[]> {

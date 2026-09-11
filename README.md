@@ -1,36 +1,95 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Consorcios App
 
-## Getting Started
+A property management system for residential buildings (consorcios) built with modern web technologies.
 
-First, run the development server:
+## Stack
+
+- **Frontend/Framework:** Next.js 16 (App Router, Turbopack)
+- **Database:** Supabase (PostgreSQL 17)
+- **Authentication:** Supabase Auth
+- **File Storage:** Supabase Storage
+- **Styling:** Tailwind CSS
+- **UI Components:** Lucide React
+
+## Setup (Development)
+
+### Prerequisites
+
+- Node.js 18+
+- npm or yarn
+
+### Installation
+
+1. Clone the repository:
+
+```bash
+git clone <repo-url>
+cd consorcios-app
+```
+
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Create `.env.local` in the repo root (no template checked in — ask a team member
+   for the real values) with:
+
+- `NEXT_PUBLIC_SUPABASE_URL` — Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Public anon key for client
+- `SUPABASE_SERVICE_ROLE_KEY` — Service role key for server-side operations
+- `ADMIN_CREATE_SECRET` — Secret for admin user creation endpoints (16+ chars)
+- `NEXT_PUBLIC_SITE_URL` — Your site URL (e.g., `http://localhost:3000` in dev)
+
+4. Start the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) to view the app.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Available Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `npm run dev` — Start development server (Turbopack)
+- `npm run build` — Build for production
+- `npm run start` — Start production server (requires Next.js)
+- `npm run start:prod` — Start production with explicit NODE_ENV
+- `npm run lint` — Run ESLint on the codebase
+- `npm run pm2:start` — Start with PM2
+- `npm run pm2:stop` — Stop PM2 process
+- `npm run pm2:restart` — Restart PM2 process
+- `npm run pm2:logs` — View PM2 logs
+- `npm run pm2:monit` — Monitor PM2 processes
 
-## Learn More
+## Database Migrations
 
-To learn more about Next.js, take a look at the following resources:
+Migrations live in `supabase/migrations/` and use SQL. To apply a migration:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+# Against the linked Supabase project
+npx supabase db query --linked -f supabase/migrations/<filename>.sql
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Do **not** use `supabase db push` — migrations are applied manually to ensure control over the deployment process.
 
-## Deploy on Vercel
+## Project Structure
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `src/` — Application code (Next.js App Router)
+  - `src/app/` — Page routes and layouts
+  - `src/app/api/` — API routes
+  - `src/actions/` — Server actions
+  - `src/components/` — Reusable UI components
+  - `src/lib/` — Utilities and helpers
+    - `src/lib/supabase/` — Supabase client and auth
+    - `src/lib/security/` — Security & audit logging
+- `supabase/` — Database schema and migrations
+- `public/` — Static assets
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Security
+
+- All requests pass through `src/proxy.ts` for security headers (CSP, CORS, CSRF, rate limiting, IP blocking)
+- Role-based access control (RLS) enforced at the database level
+- Session management via Supabase Auth with `@supabase/ssr`
+- For more, see security comments in `src/proxy.ts`

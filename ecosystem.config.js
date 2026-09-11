@@ -1,13 +1,18 @@
 // =============================================================================
 // PM2 Ecosystem Configuration
 // =============================================================================
+// NOTE: Run this from the repo root with: pm2 start ecosystem.config.js
+// PM2 will use the directory of this file as the working directory by default.
+// The app uses Next.js with 'output: standalone', so it runs the prebuilt
+// server at .next/standalone/server.js (not 'next start').
+// Ensure .env.local or production environment variables are set in the
+// environment before starting PM2 (they won't be read from disk by the
+// standalone server unless explicitly copied to .next/standalone/.env.local).
 module.exports = {
   apps: [
     {
       name: 'consorcios-app',
-      script: 'node_modules/next/dist/bin/next',
-      args: 'start',
-      cwd: '/home/pablo/consorcios-app',
+      script: '.next/standalone/server.js',
       instances: 1,
       exec_mode: 'fork',
       env: {
