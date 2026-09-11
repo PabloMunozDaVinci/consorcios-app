@@ -8,7 +8,12 @@ Definidos en `.claude/agents/`. Invocalos por su nombre cuando la tarea encaje:
   (tablas, columnas, funciones, triggers, policies RLS). No la aplica contra la DB.
 - **auditor-rls** — antes de mergear algo que toque `src/actions/`, `src/app/api/`
   o `supabase/migrations/`, o ante cualquier sospecha de fuga de datos entre
-  administradoras. Solo lee y reporta, no edita.
+  administradoras. Solo lee y reporta, no edita. Cuando reporte un hallazgo
+  explotable, no alcanza con aplicar el fix: verificarlo empíricamente contra
+  Supabase real (con dos usuarios de administradoras distintas) antes y
+  después del cambio — un fix de RLS que "parece correcto" leyendo el SQL
+  puede seguir siendo explotable por un detalle de orden de evaluación
+  (trigger vs. WITH CHECK, STABLE vs. snapshot de statement, etc.).
 - **limpiador** — tareas mecánicas sin criterio de diseño: código muerto
   confirmado, `console.log` sueltos, imports, lint/tsc. No lo uses para nada que
   toque schema, RLS, roles o lógica de negocio.
