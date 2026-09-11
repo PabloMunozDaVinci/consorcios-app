@@ -4,8 +4,10 @@
 // ACTIONS: Mora Workflow - Flujo de Mora Automatizado
 // =============================================================================
 import { createClient } from '@/lib/supabase/server';
+import { insertMoraLog } from '@/lib/supabase/tenant-insert';
 import { requireUsuario, ROLES_GESTION } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
+import type { EstadoMora } from '@/types';
 
 // NOTA: Descomenta cuando tengas Resend configurado
 // import { Resend } from 'resend';
@@ -106,7 +108,7 @@ export async function evaluarYEnviarMora(): Promise<{
 
         if (!prop) continue;
 
-        let nuevoEstado: string;
+        let nuevoEstado: EstadoMora;
         if (meses_atrasados >= 12) nuevoEstado = 'juicio_en_curso';
         else if (meses_atrasados >= 6) nuevoEstado = 'inicio_juicio';
         else if (meses_atrasados >= 3) nuevoEstado = 'apto_carta';
@@ -124,7 +126,7 @@ export async function evaluarYEnviarMora(): Promise<{
           continue;
         }
 
-        const { error: errorLog } = await supabase.from('mora_logs').insert({
+        const { error: errorLog } = await insertMoraLog(supabase, {
           unidad_id: unidad.id,
           propietario_id: prop.id,
           estado_nuevo: nuevoEstado,

@@ -29,9 +29,10 @@ export async function POST(request: Request) {
         es_area_comun: es_area_comun || false,
         estado: 'pendiente',
         fecha_solicitud: new Date().toISOString().split('T')[0],
-        // arreglo con unidad: trigger pone administradora_id/consorcio_id.
-        // área común (sin unidad): lo tomamos de la administradora del usuario.
-        administradora_id: unidad_id ? undefined : auth.usuario.administradoraId,
+        // Con unidad_id, el trigger set_tenant_cols pisa este valor con el
+        // derivado de la unidad. Sin unidad_id (área común) no tiene de
+        // dónde derivarlo, así que éste es el que queda.
+        administradora_id: auth.usuario.administradoraId,
       })
       .select()
       .single();

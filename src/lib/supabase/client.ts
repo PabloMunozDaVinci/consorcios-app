@@ -5,10 +5,11 @@
 // así el proxy/servidor la puede leer.
 import { createBrowserClient } from '@supabase/ssr';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/types/database.types';
 
-let browserClient: SupabaseClient | undefined;
+let browserClient: SupabaseClient<Database> | undefined;
 
-export function createClient(): SupabaseClient {
+export function createClient(): SupabaseClient<Database> {
   if (browserClient) return browserClient;
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

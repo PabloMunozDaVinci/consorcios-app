@@ -228,9 +228,13 @@ export const loginSchema = z.object({
 // normalizan antes de validar.
 const optionalText = (max: number) =>
   z.preprocess((v) => (v === '' || v == null ? undefined : v), z.string().max(max).optional());
-const optionalNumber = (schema: z.ZodTypeAny) =>
+// `schema` tipado como `ZodTypeAny` acá perdía el tipo de salida concreto
+// (`number`) — TS lo ensanchaba a `{}`/`unknown` al pasar por `.optional()`,
+// invisible mientras los inserts de Supabase no estaban tipados. Con `T
+// extends z.ZodNumber` se preserva el tipo real.
+const optionalNumber = <T extends z.ZodNumber>(schema: T) =>
   z.preprocess((v) => (v === '' || v == null ? undefined : Number(v)), schema.optional());
-const requiredNumber = (schema: z.ZodTypeAny) =>
+const requiredNumber = <T extends z.ZodNumber>(schema: T) =>
   z.preprocess((v) => (v === '' || v == null ? NaN : Number(v)), schema);
 const optionalBool = z.preprocess(
   (v) => (v === 'true' || v === true ? true : v === 'false' || v === false ? false : undefined),

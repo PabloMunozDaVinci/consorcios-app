@@ -2,6 +2,7 @@
 // API: Unidades - GET list / POST create
 // =============================================================================
 import { createClient } from '@/lib/supabase/server';
+import { insertUnidad } from '@/lib/supabase/tenant-insert';
 import { requireUsuario, ROLES_GESTION } from '@/lib/auth';
 import { createUnidadSchema, validateInput, badRequest } from '@/lib/sanitize';
 import { logger } from '@/lib/logger';
@@ -72,17 +73,15 @@ export async function POST(request: Request) {
     const supabase = await createClient();
 
     // administradora_id / consorcio_id los pone el trigger desde el edificio.
-    const { data, error } = await supabase
-      .from('unidades')
-      .insert({
-        building_id,
-        numero,
-        piso: piso || 0,
-        tipo: tipo || 'depto',
-        coeficiente: coeficiente || 1.0,
-        es_especial: es_especial || false,
-        habitada: habitada || false,
-      })
+    const { data, error } = await insertUnidad(supabase, {
+      building_id,
+      numero,
+      piso: piso || 0,
+      tipo: tipo || 'depto',
+      coeficiente: coeficiente || 1.0,
+      es_especial: es_especial || false,
+      habitada: habitada || false,
+    })
       .select()
       .single();
 

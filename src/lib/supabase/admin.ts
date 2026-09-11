@@ -8,10 +8,11 @@
 // NUNCA para servir datos a un usuario en respuesta a un request suyo:
 // para eso va el cliente por request de './server' y que RLS filtre.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/types/database.types';
 
-let adminClient: SupabaseClient | null = null;
+let adminClient: SupabaseClient<Database> | null = null;
 
-export function createAdminClient(): SupabaseClient {
+export function createAdminClient(): SupabaseClient<Database> {
   if (adminClient) return adminClient;
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

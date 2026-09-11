@@ -4,10 +4,19 @@
 // ACTIONS: Consorcios - Server Actions con Supabase
 // =============================================================================
 import { createClient } from '@/lib/supabase/server';
+import { insertEdificio, insertUnidad, insertPago } from '@/lib/supabase/tenant-insert';
 import { requireUsuario, ROLES_GESTION } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import { revalidatePath } from 'next/cache';
 import type { ActionResponse, EstadoMora, MoraStats } from '@/types';
+import type { Database } from '@/types/database.types';
+
+type ConsorcioRow = Database['public']['Tables']['consorcios']['Row'];
+type EdificioRow = Database['public']['Tables']['edificios']['Row'];
+type UnidadRow = Database['public']['Tables']['unidades']['Row'];
+type PagoRow = Database['public']['Tables']['pagos']['Row'];
+type ArregloRow = Database['public']['Tables']['arreglos']['Row'];
+type EstadoArreglo = Database['public']['Enums']['estado_arreglo'];
 
 // =============================================================================
 // CONSORCIOS
@@ -58,7 +67,7 @@ export async function getConsorcio(id: string): Promise<ActionResponse<any>> {
   }
 }
 
-export async function createConsorcio(formData: FormData): Promise<ActionResponse> {
+export async function createConsorcio(formData: FormData): Promise<ActionResponse<ConsorcioRow>> {
   try {
     const auth = await requireUsuario(ROLES_GESTION);
     if (!auth.ok) return { success: false, error: 'Sin permiso' };
@@ -128,7 +137,7 @@ export async function getEdificios(consorcioId: string): Promise<ActionResponse<
   }
 }
 
-export async function createEdificio(formData: FormData, consorcioId: string): Promise<ActionResponse> {
+export async function createEdificio(formData: FormData, consorcioId: string): Promise<ActionResponse<EdificioRow>> {
   try {
     const auth = await requireUsuario(ROLES_GESTION);
     if (!auth.ok) return { success: false, error: 'Sin permiso' };
@@ -139,16 +148,16 @@ export async function createEdificio(formData: FormData, consorcioId: string): P
     const direccion = formData.get('direccion') as string || null;
     const pisos = parseInt(formData.get('pisos') as string) || 1;
     const unidades_por_piso = parseInt(formData.get('unidades_por_piso') as string) || 1;
-    
-    const { data, error } = await supabase
-      .from('edificios')
-      .insert({
-        consortium_id: consorcioId,
-        nombre,
-        direccion,
-        pisos,
-        unidades_por_piso,
-      })
+
+    // administradora_id lo completa el trigger set_tenant_cols a partir de
+    // consortium_id (ver src/lib/supabase/tenant-insert.ts).
+    const { data, error } = await insertEdificio(supabase, {
+      consortium_id: consorcioId,
+      nombre,
+      direccion,
+      pisos,
+      unidades_por_piso,
+    })
       .select()
       .single();
     
@@ -233,7 +242,7 @@ export async function getAllUnidades(): Promise<ActionResponse<any[]>> {
   }
 }
 
-export async function createUnidad(formData: FormData, edificioId: string): Promise<ActionResponse> {
+export async function createUnidad(formData: FormData, edificioId: string): Promise<ActionResponse<UnidadRow>> {
   try {
     const auth = await requireUsuario(ROLES_GESTION);
     if (!auth.ok) return { success: false, error: 'Sin permiso' };
@@ -242,20 +251,20 @@ export async function createUnidad(formData: FormData, edificioId: string): Prom
 
     const numero = formData.get('numero') as string;
     const piso = parseInt(formData.get('piso') as string) || 0;
-    const tipo = (formData.get('tipo') as string) || 'depto';
+    const tipo = ((formData.get('tipo') as string) || 'depto') as Database['public']['Enums']['tipo_unidad'];
     const coeficiente = parseFloat(formData.get('coeficiente') as string) || 1.0;
-    
-    const { data, error } = await supabase
-      .from('unidades')
-      .insert({
-        building_id: edificioId,
-        numero,
-        piso,
-        tipo,
-        coeficiente,
-        es_especial: false,
-        habitada: false,
-      })
+
+    // administradora_id/consorcio_id los completa el trigger set_tenant_cols
+    // a partir de building_id (ver src/lib/supabase/tenant-insert.ts).
+    const { data, error } = await insertUnidad(supabase, {
+      building_id: edificioId,
+      numero,
+      piso,
+      tipo,
+      coeficiente,
+      es_especial: false,
+      habitada: false,
+    })
       .select()
       .single();
     
@@ -388,7 +397,7 @@ export async function getAllPagos(): Promise<ActionResponse<any[]>> {
   }
 }
 
-export async function createPago(formData: FormData, _usuarioId?: string): Promise<ActionResponse> {
+export async function createPago(formData: FormData, _usuarioId?: string): Promise<ActionResponse<PagoRow>> {
   try {
     const auth = await requireUsuario(ROLES_GESTION);
     if (!auth.ok) return { success: false, error: 'Sin permiso' };
@@ -399,30 +408,30 @@ export async function createPago(formData: FormData, _usuarioId?: string): Promi
     const monto = parseFloat(formData.get('monto') as string);
     const mes_pagado = formData.get('mes_pagado') as string;
     const medio_pago = formData.get('medio_pago') as string || 'transferencia';
-    
+
     // Buscar el propietario de la unidad
     const { data: propietarios } = await supabase
       .from('propietarios')
       .select('id')
       .eq('unidad_id', unidad_id)
       .limit(1);
-    
+
     const propietario_id = propietarios?.[0]?.id;
     if (!propietario_id) {
       return { success: false, error: 'La unidad no tiene propietario asignado.' };
     }
 
-    const { data, error } = await supabase
-      .from('pagos')
-      .insert({
-        unidad_id,
-        propietario_id,
-        monto,
-        mes_pagado,
-        fecha_pago: new Date().toISOString().split('T')[0],
-        medio_pago,
-        estado: 'confirmado',
-      })
+    // administradora_id lo completa el trigger set_tenant_cols a partir de
+    // unidad_id (ver src/lib/supabase/tenant-insert.ts).
+    const { data, error } = await insertPago(supabase, {
+      unidad_id,
+      propietario_id,
+      monto,
+      mes_pagado,
+      fecha_pago: new Date().toISOString().split('T')[0],
+      medio_pago,
+      estado: 'confirmado',
+    })
       .select()
       .single();
     
@@ -444,7 +453,7 @@ export async function createPago(formData: FormData, _usuarioId?: string): Promi
 // ARREGLOS
 // =============================================================================
 
-export async function getArreglos(filtros?: { unidad_id?: string; estado?: string }): Promise<ActionResponse<any[]>> {
+export async function getArreglos(filtros?: { unidad_id?: string; estado?: EstadoArreglo }): Promise<ActionResponse<any[]>> {
   try {
     const supabase = await createClient();
     
@@ -471,7 +480,7 @@ export async function getArreglos(filtros?: { unidad_id?: string; estado?: strin
   }
 }
 
-export async function createArreglo(formData: FormData): Promise<ActionResponse> {
+export async function createArreglo(formData: FormData): Promise<ActionResponse<ArregloRow>> {
   try {
     const auth = await requireUsuario(ROLES_GESTION);
     if (!auth.ok) return { success: false, error: 'Sin permiso' };
@@ -485,6 +494,11 @@ export async function createArreglo(formData: FormData): Promise<ActionResponse>
     const presupuesto = parseFloat(formData.get('presupuesto') as string) || null;
     const es_area_comun = formData.get('es_area_comun') === 'true';
 
+    // A diferencia de las otras tablas, acá SÍ mandamos administradora_id
+    // siempre: si hay unidad_id el trigger set_tenant_cols lo pisa con el
+    // valor derivado de la unidad (ver migración 002), pero si es un
+    // arreglo de área común (unidad_id null) el trigger no tiene de dónde
+    // derivarlo — ahí este valor es el que queda.
     const { data, error } = await supabase
       .from('arreglos')
       .insert({
@@ -496,7 +510,7 @@ export async function createArreglo(formData: FormData): Promise<ActionResponse>
         es_area_comun,
         estado: 'pendiente',
         fecha_solicitud: new Date().toISOString().split('T')[0],
-        administradora_id: unidad_id ? undefined : auth.usuario.administradoraId,
+        administradora_id: auth.usuario.administradoraId,
       })
       .select()
       .single();
@@ -516,20 +530,20 @@ export async function createArreglo(formData: FormData): Promise<ActionResponse>
 
 export async function updateArregloEstado(
   arregloId: string,
-  nuevoEstado: string
-): Promise<ActionResponse> {
+  nuevoEstado: EstadoArreglo
+): Promise<ActionResponse<ArregloRow>> {
   try {
     const auth = await requireUsuario(ROLES_GESTION);
     if (!auth.ok) return { success: false, error: 'Sin permiso' };
 
     const supabase = await createClient();
 
-    const updateData: Record<string, unknown> = { estado: nuevoEstado };
-    
+    const updateData: Database['public']['Tables']['arreglos']['Update'] = { estado: nuevoEstado };
+
     if (nuevoEstado === 'completado') {
       updateData.fecha_completado = new Date().toISOString().split('T')[0];
     }
-    
+
     const { data, error } = await supabase
       .from('arreglos')
       .update(updateData)

@@ -4,6 +4,7 @@
 // Crea auth user + fila en `propietarios` (con unidad) + fila en `usuarios`
 // (rol propietario). El tenant se deriva de la unidad.
 import { createAdminClient } from '@/lib/supabase/admin';
+import { insertPropietario } from '@/lib/supabase/tenant-insert';
 import { logger } from '@/lib/logger';
 import { getAdminCreateSecret, secretMatches, generateTempPassword } from '@/lib/admin-secret';
 import { createPropietarioSchema, validateInput, badRequest } from '@/lib/sanitize';
@@ -60,9 +61,9 @@ export async function POST(request: Request) {
     const authUserId = authData.user.id;
 
     // 4. Propietario (trigger set_tenant_cols pone administradora_id/consorcio_id)
-    const { data: prop, error: propError } = await supabase
-      .from('propietarios')
-      .insert({ auth_user_id: authUserId, unidad_id, nombre, apellido, dni, email, telefono: telefono || null })
+    const { data: prop, error: propError } = await insertPropietario(supabase, {
+      auth_user_id: authUserId, unidad_id, nombre, apellido, dni, email, telefono: telefono || null,
+    })
       .select('id')
       .single();
     if (propError || !prop) {

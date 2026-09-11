@@ -2,6 +2,7 @@
 // API: Edificios - List and Create
 // =============================================================================
 import { createClient } from '@/lib/supabase/server';
+import { insertEdificio } from '@/lib/supabase/tenant-insert';
 import { requireUsuario, ROLES_GESTION } from '@/lib/auth';
 import { createEdificioSchema, validateInput, badRequest } from '@/lib/sanitize';
 import { logger } from '@/lib/logger';
@@ -51,15 +52,13 @@ export async function POST(request: Request) {
 
     // administradora_id lo pone el trigger set_tenant_cols desde el consorcio.
     // RLS (WITH CHECK) rechaza si el consorcio no es del tenant del usuario.
-    const { data, error } = await supabase
-      .from('edificios')
-      .insert({
-        consortium_id,
-        nombre,
-        direccion: direccion || null,
-        pisos: pisos || 1,
-        unidades_por_piso: unidades_por_piso || 1,
-      })
+    const { data, error } = await insertEdificio(supabase, {
+      consortium_id,
+      nombre,
+      direccion: direccion || null,
+      pisos: pisos || 1,
+      unidades_por_piso: unidades_por_piso || 1,
+    })
       .select()
       .single();
 

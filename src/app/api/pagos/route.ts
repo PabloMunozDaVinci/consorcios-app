@@ -2,6 +2,7 @@
 // API: Create Pago
 // =============================================================================
 import { createClient } from '@/lib/supabase/server';
+import { insertPago } from '@/lib/supabase/tenant-insert';
 import { requireUsuario, ROLES_GESTION } from '@/lib/auth';
 import { createPagoSchema, validateInput, badRequest } from '@/lib/sanitize';
 import { logger } from '@/lib/logger';
@@ -35,18 +36,16 @@ export async function POST(request: Request) {
 
     const mesCompleto = `${mes_pagado}-01`;
 
-    const { data, error } = await supabase
-      .from('pagos')
-      .insert({
-        unidad_id,
-        propietario_id,
-        monto,
-        mes_pagado: mesCompleto,
-        fecha_pago: new Date().toISOString().split('T')[0],
-        medio_pago: medio_pago || 'transferencia',
-        nro_comprobante: nro_comprobante || null,
-        estado: 'confirmado',
-      })
+    const { data, error } = await insertPago(supabase, {
+      unidad_id,
+      propietario_id,
+      monto,
+      mes_pagado: mesCompleto,
+      fecha_pago: new Date().toISOString().split('T')[0],
+      medio_pago: medio_pago || 'transferencia',
+      nro_comprobante: nro_comprobante || null,
+      estado: 'confirmado',
+    })
       .select()
       .single();
 
