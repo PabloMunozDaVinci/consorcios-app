@@ -101,41 +101,25 @@ No hay tabla de **expensas** ni de **liquidación**. No hay período, ni prorrat
 
 ## 4. Modelo de autenticación y autorización
 
-### 4.1 Roles
-No hay tabla de roles. **`isAdmin` = "el propietario no tiene `unidad_id`"**. Se calcula en tres lugares con dos definiciones distintas:
+### 4.1 — ~~Roles~~ · RESUELTO (bloque 1)
+~~No había tabla de roles; `isAdmin` se calculaba distinto en 3 archivos, y en `useUser.ts` un error de RLS dejaba a cualquiera marcado admin.~~
+**Resuelto**: tabla `usuarios` (migración `002_multitenant.sql`) con `rol` real (`super_admin`/`admin`/`operador`/`propietario`). `lib/auth.ts`, `AuthGuard.tsx` y `useUser.ts` leen de ahí.
 
-| Archivo | Definición |
-|---|---|
-| `lib/auth.ts:64` | `isAdmin = !propietario?.unidad_id` |
-| `components/AuthGuard.tsx:1089` | `isAdmin = !propietario?.unidad_id` |
-| `hooks/useUser.ts:996` | `setIsAdmin(!prop)` ← **distinta** |
+### 4.2 — ~~Multi-tenancy: no existe~~ · RESUELTO (bloque 1)
+~~No había relación `admin ↔ consorcio`; cualquier autenticado veía todo.~~
+**Resuelto**: nivel `administradoras` + `administradora_id` desnormalizado en todas las tablas tenant (ROADMAP.md Fase 1). Verificado con dos administradoras reales: admin de A no ve ni puede modificar nada de B.
 
-En `useUser.ts` la query usa el cliente **anon** con RLS activa; si la policy bloquea la fila o `.single()` no encuentra nada, `prop` es `null` y el usuario queda marcado **admin** en la UI. Es escalada de privilegios por defecto (solo visual, pero guía el menú).
-
-### 4.2 Multi-tenancy: no existe
-No hay relación `admin ↔ consorcio`. Cualquier usuario autenticado que llegue a un endpoint ve **todos los consorcios, todas las unidades, todos los propietarios y todos los pagos** del sistema. Para un SaaS que apunta a varias administraciones, esto es bloqueante.
-
-### 4.3 RLS: decorativa
-El schema habilita RLS en 7 tablas y define 5 policies. Pero **el 100% de las lecturas y escrituras del servidor usan `createSupabaseAdmin()` (service_role), que saltea RLS por diseño**. Verificado: `consorcios`, `edificios`, `mora_logs`, `security_logs` y `blocked_ips` tienen RLS activa y **cero policies** — deny-all para el cliente anon, irrelevante para el servidor.
+### 4.3 — ~~RLS: decorativa~~ · RESUELTO (bloque 1)
+~~El 100% de las lecturas/escrituras del servidor usaban `service_role`, que saltea RLS. `consorcios`, `edificios`, `mora_logs`, `security_logs`, `blocked_ips` tenían RLS activa y cero policies.~~
+**Resuelto**: las 10 API routes y `src/actions/*` usan el cliente por request (`@/lib/supabase/server`); RLS filtra de verdad. `service_role` queda sólo para crear/borrar usuarios de auth y escribir logs de seguridad. Todas las tablas tenant tienen policies nuevas.
 
 ---
 
-## 5. El problema central de auth
+## 5. — ~~El problema central de auth~~ · RESUELTO (bloque 1)
 
-```
-login/page.tsx  →  supabase.auth.signInWithPassword()
-                   persistSession: true  →  guarda la sesión en localStorage
-                                                    ↓
-middleware.ts   →  verifyJWT() busca la cookie 'sb-access-token'
-                                                    ↓
-                            esa cookie NUNCA se escribe
-```
+~~`signInWithPassword` guardaba la sesión en localStorage; el middleware buscaba una cookie `sb-access-token` que nunca se escribía → loop de redirect o `DISABLE_AUTH=true` sin auth alguna. Además `middleware.ts:246-248` hacía `request.headers.set(...)`, que no propaga nada a las rutas downstream.~~
 
-`@supabase/supabase-js` sin los helpers SSR (`@supabase/ssr`) guarda la sesión en **localStorage**, que el middleware (que corre en el servidor/Edge) no puede leer. El token tampoco se manda en el header `Authorization` desde ningún fetch del cliente.
-
-**Consecuencia:** todo request a ruta protegida falla la verificación → redirect a `/login` → loop. La única forma de que la app ande es `DISABLE_AUTH=true` en `.env.local`, que en `middleware.ts:151` hace `return NextResponse.next()` **antes de cualquier chequeo**. El historial de commits (`fix: use window.location for reliable redirect after login`, `fix: simplify login - add console logs`) sugiere que se peleó con este síntoma sin llegar a la causa.
-
-**Bug adicional:** `middleware.ts:246-248` hace `request.headers.set('x-user-id', ...)`. En Next.js eso **no propaga nada** a las rutas downstream — hay que devolver `NextResponse.next({ request: { headers: nuevosHeaders } })`. Por eso ninguna API route sabe quién es el usuario, y por eso todas terminan usando service_role sin filtrar.
+**Resuelto**: migración completa a `@supabase/ssr` (`src/lib/supabase/{client,server,admin,proxy}.ts`). La sesión vive en cookies; `src/proxy.ts` (ex `middleware.ts`) usa `updateSession()` para refrescarla y propaga la identidad con `NextResponse.next({ request: { headers } })`. Verificado en el browser contra Supabase real: login escribe la cookie, rutas protegidas cargan logueado, sin sesión redirige/401.
 
 ---
 
@@ -175,14 +159,17 @@ La feature entera es un no-op (el comentario dice "TODO: Replace with proper geo
 ### 🟠 6.8 — Rate limiting en memoria
 `rateLimitStore = new Map()` en `middleware.ts:47`. Se pierde en cada restart/deploy y no se comparte entre instancias PM2. El propio comentario lo admite ("for production use Redis"). Además el chequeo de "intentos diarios" hace **una query a Supabase por request** (`getTodayAttempts`) + otra (`isIPBlocked`) — 2 round-trips a la DB en el hot path de cada navegación.
 
-### 🟠 6.9 — Bucket de Storage público
-`schema.sql:295`: `INSERT INTO storage.buckets VALUES ('mantenimiento','mantenimiento', true)`. Las fotos de arreglos (que pueden mostrar interiores de unidades, patentes, personas) quedan legibles por URL para cualquiera. `UploadImage.tsx` usa `getPublicUrl()`. **Fix:** bucket privado + signed URLs.
+### 🟠 6.9 — ~~Bucket de Storage público~~ · RESUELTO (bloque 1)
+~~`schema.sql:295` creaba `mantenimiento` con `public=true`. `UploadImage.tsx` usaba `getPublicUrl()`.~~
+**Resuelto**: migración `003_storage_privado.sql` (`public=false` + policy que exige usuario activo); `UploadImage.tsx` usa `createSignedUrl()`. Verificado: `storage/v1/object/public/mantenimiento/...` → 400.
 
-### 🟡 6.10 — Filtrado de errores internos al cliente
-Todas las rutas devuelven `error.message` de Supabase tal cual (`return Response.json({ error: error.message })`). Se filtran nombres de tablas, columnas y constraints. `/api/health` es público y expone uptime, uso de memoria y el mensaje de error de conexión a la DB.
+### 🟡 6.10 — ~~Filtrado de errores internos al cliente~~ · RESUELTO (bloque 1)
+~~Todas las rutas devolvían `error.message` de Supabase tal cual. `/api/health` exponía detalles de la conexión.~~
+**Resuelto**: las rutas mutantes devuelven mensajes genéricos (el error real sólo va a `logger.error`); `/api/health` ya no expone el mensaje de error ni memoria/uptime.
 
-### 🟡 6.11 — Enumeración de usuarios ineficiente en reset-password
-`reset-password/route.ts:293` hace `supabase.auth.admin.listUsers()` **y lo recorre en memoria**. Está paginado (50 por default), así que con >50 usuarios el reset deja de funcionar para los que no entran en la primera página. La respuesta genérica está bien; el mecanismo no. **Fix:** llamar `resetPasswordForEmail()` directo, que ya es no-enumerable.
+### 🟡 6.11 — ~~Enumeración de usuarios ineficiente en reset-password~~ · RESUELTO (bloque 1)
+~~`listUsers()` paginado (50 por default): con más usuarios el reset dejaba de andar para los que no entraban en la primera página.~~
+**Resuelto**: llama `resetPasswordForEmail()` directo, no enumerable, sin paginación.
 
 ### 🟡 6.12 — CSP débil
 `script-src 'self' 'unsafe-inline' 'unsafe-eval'` anula buena parte del valor de la CSP. Además `connect-src` incluye `http://localhost:*` en **producción** (commit `5e5ce5a`). **Fix:** nonces de Next.js y sacar localhost del build de prod.
@@ -190,8 +177,9 @@ Todas las rutas devuelven `error.message` de Supabase tal cual (`return Response
 ### 🟡 6.13 — Sin protección CSRF
 Las API routes aceptan `POST` con JSON sin verificar `Origin`/`Referer`. Con auth por cookie (que es a donde hay que ir), esto se vuelve explotable.
 
-### 🟡 6.14 — Server Actions sin control de acceso
-`admin/mora/page.tsx` expone un Server Action inline que corre `evaluarYEnviarMora()` sin ningún chequeo de rol. Cuando se descomenten los emails de Resend, ese action **manda cartas de intimación legal a los propietarios**. Debe verificar admin adentro del action, no confiar en el middleware.
+### 🟡 6.14 — ~~Server Actions sin control de acceso~~ · RESUELTO (bloque 1)
+~~`admin/mora/page.tsx` exponía un Server Action inline que corría `evaluarYEnviarMora()` sin chequeo de rol.~~
+**Resuelto**: `evaluarYEnviarMora()` verifica `requireUsuario(ROLES_GESTION)` adentro; la página también redirige si el usuario no es de gestión.
 
 ### 🟡 6.15 — ~~Funciones `SECURITY DEFINER` sin `search_path`~~ · RESUELTO (bloque 0)
 ~~`get_saldo_deudor` y `evaluar_y_actualizar_mora` corren como owner sin `SET search_path = public, pg_temp`. Es el vector clásico de secuestro de search_path en Postgres.~~
@@ -259,8 +247,9 @@ Ocho tablas tienen la columna con `DEFAULT NOW()` y **cero triggers**. Queda con
 ### 🟡 7.11 — `es_dueño_principal` + `porcentaje_propiedad` vs `UNIQUE (unidad_id)`
 El schema modela copropiedad (porcentaje, dueño principal) pero la constraint `unique_propietario_por_unidad` permite **un solo propietario por unidad**. Contradicción de diseño: en propiedad horizontal la copropiedad es común (sucesiones, matrimonios).
 
-### ⚪ 7.12 — `recuperar-password/page.tsx` tiene el `import` al final del archivo
-`import { useRouter } from 'next/navigation'` está en la última línea (funciona por hoisting), y `router` nunca se usa → error de lint.
+### ⚪ 7.12 — ~~`recuperar-password/page.tsx` tiene el `import` al final del archivo~~ · RESUELTO (bloque 1)
+~~`import { useRouter }` en la última línea, `router` nunca usado.~~
+**Resuelto** al reescribir la página completa para agregar la fase de reset que faltaba (bug reportado por el usuario): ya no usa `useRouter`.
 
 ### ⚪ 7.13 — `test-api.js` requiere `dotenv`, que no está en `package.json`
 Falla con `MODULE_NOT_FOUND`. Además hace un INSERT+DELETE real contra la DB con service_role.
@@ -271,7 +260,7 @@ Falla con `MODULE_NOT_FOUND`. Además hace un INSERT+DELETE real contra la DB co
 
 | Tema | Detalle |
 |---|---|
-| **Código muerto** | `lib/sanitize.ts` completo (295 LOC, 9 schemas zod): importado en `middleware.ts` pero **ninguna función se llama**. Verificado: 0 usos de `sanitizeString`, `validateInput`, `createPagoSchema`, etc. en todo `src/`. |
+| ~~**Código muerto**~~ | ~~`lib/sanitize.ts` (295 LOC, 9 schemas zod) importado pero nunca llamado.~~ **Resuelto (bloque 1)**: `validateInput()` + los schemas se usan en las 8 rutas mutantes. |
 | **Código muerto** | `components/AuthGuard.tsx` (`AuthGuard`, `AuthRequired`, `AdminOnly`): **cero referencias** en `src/app/`. La protección client-side no existe. |
 | **Código muerto** | `lib/geolocation.ts` (versión async) no la usa nadie salvo `getCountryCode` desde el security logger. `verifyAdmin`, `requiresAuth`, `logLoginFailed`, `logSecurityEvent` se importan en el middleware y no se usan. |
 | **Validación** | Ninguna API route usa zod. Todas hacen `if (!campo)` a mano. Sin límites de longitud → un `titulo` de 10 MB entra sin problema. |
