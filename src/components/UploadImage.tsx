@@ -136,13 +136,18 @@ export function UploadImage({
 
       setProgress(80);
 
-      const { data: urlData } = supabase.storage
+      // El bucket es privado: sin signed URL no hay forma de ver el archivo.
+      // OJO al wirear esto: no persistas esta URL, expira. Guardá `fileName`
+      // (el path) y generá una signed URL nueva cada vez que se muestre.
+      const { data: signedData, error: signedError } = await supabase.storage
         .from(bucket)
-        .getPublicUrl(fileName);
+        .createSignedUrl(fileName, 60 * 60); // 1 hora
+
+      if (signedError || !signedData) throw signedError ?? new Error('No se pudo generar la URL');
 
       setProgress(100);
-      setUploadedUrl(urlData.publicUrl);
-      onUploadComplete?.(urlData.publicUrl);
+      setUploadedUrl(signedData.signedUrl);
+      onUploadComplete?.(signedData.signedUrl);
     } catch (err) {
       setError(String(err));
     } finally {
