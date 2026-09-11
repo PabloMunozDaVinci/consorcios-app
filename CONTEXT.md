@@ -265,16 +265,15 @@ Falla con `MODULE_NOT_FOUND`. Además hace un INSERT+DELETE real contra la DB co
 | Tema | Detalle |
 |---|---|
 | ~~**Código muerto**~~ | ~~`lib/sanitize.ts` (295 LOC, 9 schemas zod) importado pero nunca llamado.~~ **Resuelto (bloque 1)**: `validateInput()` + los schemas se usan en las 8 rutas mutantes. |
-| **Código muerto** | `components/AuthGuard.tsx` (`AuthGuard`, `AuthRequired`, `AdminOnly`): **cero referencias** en `src/app/`. La protección client-side no existe. |
-| **Código muerto** | `lib/geolocation.ts` (versión async) no la usa nadie salvo `getCountryCode` desde el security logger. `verifyAdmin`, `requiresAuth`, `logLoginFailed`, `logSecurityEvent` se importan en el middleware y no se usan. |
+| ~~**Código muerto**~~ | ~~`components/AuthGuard.tsx`: cero referencias.~~ **Resuelto (bloque 3, ítem 31)**: borrado. |
+| ~~**Código muerto**~~ | ~~`lib/geolocation.ts` no la usa nadie salvo `getCountryCode`.~~ **Resuelto (bloque 3, ítem 31)**: borrado entero — `getCountryCode()` siempre devolvía `'XX'` (su cache nunca se poblaba); sus dos usos en `security/logger.ts` pasan a la constante literal. También se borró `checkAndBlockIfNeeded()` en `blocklist.ts` (resto del geo-blocking, sin llamadores). |
 | **Validación** | Ninguna API route usa zod. Todas hacen `if (!campo)` a mano. Sin límites de longitud → un `titulo` de 10 MB entra sin problema. |
-| **Tipos** | 24 usos de `: any` / `as any` / `@ts-ignore`. `ActionResponse<any[]>` en todos los getters anula el `strict: true` del tsconfig. |
-| **Tests** | Cero. Sin runner, sin CI, sin GitHub Actions (a pesar de que el schema menciona "GitHub Actions" en el header). |
-| **Duplicación** | `search()` está implementada dos veces (`actions/consorcios.ts` y `actions/search.ts`) con lógicas distintas. `generateTempPassword()` copiado en dos rutas. |
-| **Crypto** | `generateTempPassword()` usa `Math.random()`, no `crypto.randomUUID()`/`randomBytes`. Predecible. |
-| **Deploy** | `ecosystem.config.js` tiene `cwd: '/home/pablo/consorcios-app'` hardcodeado. `output: 'standalone'` genera `.next/standalone/server.js`, pero PM2 arranca `next start` — se pierde el beneficio del standalone. |
-| **Docs** | El `README.md` es el de `create-next-app` sin tocar. No hay `.env.example`. |
-| **Git** | 17 commits, todos directos a `main`, 12 de ellos `fix:` sobre los mismos síntomas de login. |
+| **Tipos** | ~Parcial, resuelto (bloque 3, ítem 33)~: los 3 clientes Supabase están tipados con `SupabaseClient<Database>` y los paths de escritura (`create*`/`update*` en actions/API) ya no usan `any`. Quedan ~15 `any` en los paths de lectura con joins (`getConsorcios`, `getUnidades`, etc. y las páginas que los consumen) — ver `PENDIENTES.md`. |
+| **Tests** | Cero al momento de esta línea. Bloque 4 (Vitest + CI) se disparó en un subagente al cierre de la sesión del 2026-09-11 — confirmar en `PENDIENTES.md`/git si ya se commiteó. |
+| **Duplicación** | ~~`search()` implementada dos veces.~~ **Resuelto (bloque 3, ítem 32)**. ~~`generateTempPassword()` copiado en dos rutas.~~ **Resuelto**: una sola definición en `lib/admin-secret.ts`, con `crypto.randomBytes` (no `Math.random()`). |
+| **Deploy** | ~~`ecosystem.config.js` tenía `cwd` hardcodeado y arrancaba `next start` en vez del standalone.~~ **Resuelto (bloque 3, ítem 36)**. |
+| ~~**Docs**~~ | ~~El `README.md` era el de `create-next-app` sin tocar.~~ **Resuelto (bloque 3, ítem 37)**. |
+| **Git** | 17 commits, todos directos a `main`, 12 de ellos `fix:` sobre los mismos síntomas de login (histórico, sin cambios desde entonces — el trabajo de Claude Code vive en ramas `fix/bloque-*` separadas, sin mergear). |
 
 ---
 

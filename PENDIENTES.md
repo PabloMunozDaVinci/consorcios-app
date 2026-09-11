@@ -4,89 +4,111 @@
 
 ---
 
-## 📍 PARA RETOMAR LA PRÓXIMA SESIÓN (corte del 2026-09-10/11)
+## 📍 PARA RETOMAR LA PRÓXIMA SESIÓN (corte del 2026-09-11, sesión 2)
 
-**Estado**: Bloques 0, 1 y 2 completos y verificados contra Supabase real. Bloque 3
-recién arrancado. Bloque 4 y `PROMPT-features.md` (Fases 1-3 del ROADMAP) sin
-empezar — es la parte más grande de todo lo pedido, dimensionalo así.
+**Estado**: Bloques 0, 1 y 2 completos y verificados. Bloque 3 completo (31, 32,
+33-núcleo, 35, 36, 37 — ver detalle abajo). Bloque 4 (Vitest + tests + CI) y la
+auditoría RLS post-Bloque-3 quedaron corriendo en subagentes al cortar esta
+sesión — revisar sus resultados es el primer paso de la próxima. `PROMPT-features.md`
+(Fases 1-3 del ROADMAP) sigue sin empezar — es la parte más grande de todo lo
+pedido, dimensionalo así.
 
 ### Ramas (todas pusheadas a `origin`, todas sincronizadas)
 `fix/bloque-0-arranque`, `fix/bloque-1-seguridad`, `fix/bloque-2-negocio`,
-`fix/bloque-3-limpieza` (activa ahora, HEAD = `ac58074`). Ninguna tiene PR
-abierto todavía — son commits directos a cada rama, sin mergear a `master`.
+`fix/bloque-3-limpieza` (activa ahora). Ninguna tiene PR abierto todavía — son
+commits directos a cada rama, sin mergear a `master`.
 
 ### Para arrancar de nuevo
-1. `git checkout fix/bloque-3-limpieza` (o crear la siguiente si ya se decidió mergear).
-2. `.env.local` ya tiene las credenciales reales (gitignored) — no hace falta
-   rehacer la conexión a Supabase. Sigue siendo el proyecto `jbikxksdignshfgnbipi`
-   (Postgres 17), y `npx supabase db query --linked -f <migracion>` sigue siendo
-   la única vía para aplicar SQL (el sandbox no tiene salida a Postgres directo).
-3. `npm run dev` / `npm run build` && `npx tsc --noEmit` && `npm run lint` para
-   confirmar que se sigue en verde antes de tocar nada (81 problems / 42 errors
-   de lint preexistentes, 0 de tsc, build OK — todo documentado abajo).
+1. `git checkout fix/bloque-3-limpieza` (o crear `fix/bloque-4-tests` si ya se
+   decidió mergear el 3, o si el subagente `tester` dejó cambios sin commitear
+   ahí — revisar `git status` primero, puede haber trabajo de la sesión anterior
+   sin confirmar).
+2. `.env.local` ya tiene las credenciales reales (gitignored) — proyecto
+   `jbikxksdignshfgnbipi` (Postgres 17). `npx supabase db query --linked -f <migracion>`
+   sigue siendo la única vía para aplicar SQL.
+3. `npm run dev` / `npm run build` && `npx tsc --noEmit` && `npm run lint` — hoy
+   0 errores de tsc, ~39 errores/36 warnings de lint (preexistentes, documentados
+   abajo), build OK.
 
-### Lo último que quedó a mitad de camino (ítem 33, Bloque 3)
-Generé `src/types/database.types.ts` con `supabase gen types typescript --linked`
-(commit `ac58074`). Intenté tipar los 3 clientes (`src/lib/supabase/{client,server,admin}.ts`)
-con `SupabaseClient<Database>` para eliminar los `any` de raíz, pero **lo reverti**
-porque abrió ~20 errores de tsc reales (no ruido): la mayoría son inserts que no
-mandan `administradora_id`/`consorcio_id` porque **el trigger `set_tenant_cols` los
-completa en la DB**, y el tipo generado los marca `required` porque no sabe eso.
-Ejemplos concretos que van a reaparecer apenas alguien vuelva a intentarlo:
-- `actions/consorcios.ts`: `createEdificio`, `createUnidad`, `createPago`,
-  `createArreglo`, `updateArregloEstado` (el `Record<string, unknown>` de
-  `updateData` no tipa contra `RejectExcessProperties`).
-- `api/edificios`, `api/unidades`, `api/pagos`, `api/arreglos`,
-  `api/auth/create-propietario`: mismo patrón.
-- `actions/mora.ts:130`: `nuevoEstado` es `string`, no el enum `EstadoMora`.
-- Varios `select('estado_mora')`-like con literal `string` contra un enum literal.
+### Bug del usuario resuelto esta sesión (fuera del roadmap)
+"Después de loguearse, la pantalla siguiente seguía mostrando el botón de
+Iniciar Sesión": `ConditionalLayout` y `Header` leían la sesión con dos llamadas
+independientes al cliente de Supabase (`getSession()` uno, `getUser()` el otro),
+que podían resolver en momentos distintos según la latencia real. `src/hooks/useUser.tsx`
+pasó a ser un Context (`UserProvider`) con una sola lectura compartida. Verificado
+en dev y en el build de producción real (standalone + CSP estricto). Commit `88b9000`.
 
-**Cómo resolverlo bien** (no lo hice por tiempo, no por dificultad): en vez de pelear
-tipo por tipo, definir tipos `Insert` derivados que **omitan** las columnas que
-llenan los triggers (`Omit<Database['public']['Tables']['edificios']['Insert'],
-'administradora_id' | 'consorcio_id'>`) y usar esos en las funciones que insertan
-confiando en el trigger. Para los enums (`estado`, `tipo`, `prioridad`, `rol_usuario`,
-`EstadoMora`), tipar las variables locales con el tipo del enum en vez de `string`
-en el momento en que se calculan, no en el insert.
+### Ítem 33 (Bloque 3) — qué se hizo y qué queda
+Se tipearon los 3 clientes Supabase con `SupabaseClient<Database>` (usando
+`src/types/database.types.ts`, generado con `supabase gen types typescript --linked`).
+Esto rompía ~20 inserts que dependen de que el trigger `set_tenant_cols()`
+(migración 002) complete `administradora_id`/`consorcio_id` desde la fila padre
+— se resolvió con `src/lib/supabase/tenant-insert.ts` (seis funciones, una por
+tabla derivada, que castean el `Insert` documentando por qué es seguro). Se
+tipearon también los enums (`EstadoMora`, `EstadoArreglo`, `tipo_unidad`) en vez
+de `string`, y se corrigió un bug real en `lib/sanitize.ts` (`optionalNumber`/
+`requiredNumber` tipados sobre `ZodTypeAny` perdían el tipo de salida real,
+invisible mientras los inserts no estaban tipados). Ver commit con mensaje
+"feat: tipa los clientes Supabase con Database...".
 
-**El archivo `database.types.ts` queda commiteado y listo para usar** — sólo falta
-terminar de enchufarlo. `git stash`/`git log -p ac58074^..ac58074 -- src/lib/supabase`
-si hace falta ver exactamente qué se probó y revirtió.
+**Lo que queda de este ítem** (documentado, no bloqueante): ~15 `any` en los
+*paths de lectura* — `getConsorcios`, `getConsorcio`, `getUnidades`, `getUnidad`,
+`getAllUnidades`, `getPagos`, `getAllPagos`, `getArreglos` (todos en
+`actions/consorcios.ts`, devuelven `ActionResponse<any[]>`/`<any>`) y los
+componentes de página que consumen esos arrays (`unidades/page.tsx`,
+`pagos/page.tsx`, `mantenimiento/page.tsx`, `consorcios/page.tsx`, etc., con
+`.map((x: any) => ...)`). No se tocó porque tipar bien un `.select('*, edificios(*)')`
+con join requiere un tipo escrito a mano por cada select (Supabase no infiere
+solo desde el string), no es el mismo patrón repetido que los inserts. Cuando se
+retome: definir un tipo por cada forma de join real que se usa (ej.
+`ConsorcioConEdificios = ConsorcioRow & { edificios: EdificioRow[] }`) en
+`src/types/index.ts` o un archivo nuevo, tipar el return de cada `getX` con eso,
+y una vez que la acción esté tipada, la mayoría de los `.map((x: any) =>...)` en
+las páginas se arreglan solos borrando la anotación `: any` (TS infiere desde el
+array ya tipado) — no hace falta reescribirlos a mano.
 
-### Bloque 3 — lo que falta después de eso
-- **31**: `AuthGuard.tsx` ✅ borrado. Falta revisar `lib/geolocation.ts` (versión
-  async, sólo la usa `security/logger.ts` para el country code de logging — ya
-  no bloquea nada desde que se sacó el geo-blocking en el bloque 2, podría
-  simplificarse o borrarse si el country code en los logs no se considera valioso).
-- **32**: ✅ hecho (se sacó la copia muerta de `search()` en `consorcios.ts`).
-- **33**: en progreso, ver arriba. ~20-25 `any` reales quedan.
-- **34**: ✅ ya resuelto en el bloque 1 (se reescribió `recuperar-password` entera).
-- **35**: `test-api.js` — no tocado. Decidir: borrarlo o convertirlo a un test real
-  (Vitest, bloque 4) que no pegue con `service_role` contra datos reales.
-- **36**: `ecosystem.config.js` — no tocado. `cwd` hardcodeado a
-  `/home/pablo/consorcios-app` (coincide con la ruta real, pero no debería estar
-  fijo en el archivo) y arranca `next start` en vez de aprovechar
-  `output: 'standalone'` (`node .next/standalone/server.js`) — el build ya tira
-  ese warning ahora que se ve en producción.
-- **37**: `README.md` — sigue siendo el de `create-next-app` sin tocar.
+### Bloque 3 — resto de ítems
+- **31**: ✅ `AuthGuard.tsx` borrado (sesión anterior). `lib/geolocation.ts`
+  borrado esta sesión — código muerto real: `getCountryCode()` siempre devolvía
+  `'XX'` porque su cache nunca se poblaba. `checkAndBlockIfNeeded()` en
+  `blocklist.ts` también borrada (resto del geo-blocking, sin llamadores).
+- **32**: ✅ hecho.
+- **33**: núcleo hecho, resto documentado arriba.
+- **34**: ✅ ya resuelto en el bloque 1.
+- **35**: ✅ `test-api.js` borrado.
+- **36**: ✅ `ecosystem.config.js` arranca el standalone build, sin `cwd` hardcodeado.
+- **37**: ✅ `README.md` reescrito con el setup real.
 
-### Después del Bloque 3
-- **Bloque 4**: Vitest + el test de aislamiento multi-tenant (ya probado a mano
-  con `admin-a`/`admin-b`, ver más abajo — falta automatizarlo), cálculo de
-  meses de mora, máquina de estados, `safeRedirectPath`, GitHub Actions.
+### Corriendo en background al cortar esta sesión — revisar primero
+1. **Subagente `auditor-rls`**: auditoría completa de `src/actions/`, `src/app/api/`
+   y `supabase/migrations/`, con foco en si `tenant-insert.ts` es realmente seguro
+   (si el trigger cubre todos los call sites que confían en él) y en el caso
+   especial de `arreglos` (unidad_id opcional). Nunca se había corrido una
+   auditoría de este tipo sobre el código actual — leer su resultado y actuar
+   sobre cualquier hallazgo ANTES de seguir con Fases del ROADMAP.
+2. **Subagente `tester`**: Bloque 4 completo — Vitest, test de aislamiento
+   multi-tenant automatizado (usando `admin-a@example.invalid`/`admin-b@example.invalid`,
+   fijando password conocida vía admin API en el `beforeAll`), meses de deuda,
+   máquina de estados de mora, `safeRedirectPath`, GitHub Actions workflow. Se le
+   pidió explícitamente NO commitear — revisar el diff a mano antes de aceptarlo
+   (es la primera vez que este subagente corre, y toca `package.json`).
+
+### Después de revisar lo anterior
 - **`PROMPT-features.md` (Fases 1-3 del ROADMAP)**: no empezado. Es un producto
   entero (cuenta corriente, importador de liquidaciones, portal del propietario,
   reclamos, mora reescrita sobre cuenta_corriente, certificado de deuda,
-  cobranzas). El multi-tenant que pide como prerequisito (§1.1) **ya está hecho**
-  (bloque 1, ítem 15) — pero igual hay que mostrar el plan de la Fase 1 (DDL de
-  `cuenta_corriente` + `importaciones` + policies) y esperar aprobación antes de
-  escribir código, como pide el propio `PROMPT-features.md`.
+  cobranzas). El multi-tenant que pide como prerequisito (§1.1) ya está hecho —
+  pero igual hay que mostrar el plan de la Fase 1 (DDL de `cuenta_corriente` +
+  `importaciones` + policies) y esperar aprobación antes de escribir código.
+- Decidir si/cuándo mergear los 4 `fix/bloque-*` a `master` (nada mergeado
+  todavía, todo en ramas separadas).
 
 ### Pendiente de acción del usuario
-Nada bloqueante por ahora — ya asignó su rol (`super_admin`) y ya le reseteé la
-password (`Testing1234`) a `pablo.ariel.199@gmail.com`. Push a git: el usuario
-autorizó explícitamente ("opción B") que yo pushee sin pedir permiso en cada
-commit; seguir haciéndolo.
+Nada bloqueante. Rol asignado, password reseteada, autorización de push vigente
+("opción B"). Los secrets de Supabase no están configurados en GitHub Actions
+todavía — el workflow de CI que deja el subagente `tester` debería documentar
+cuáles hacen falta para que el test de aislamiento multi-tenant corra en CI (hoy
+sólo corre local, con `.env.local`).
 
 ---
 
