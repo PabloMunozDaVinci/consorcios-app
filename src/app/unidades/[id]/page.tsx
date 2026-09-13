@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft, User, Home, Car, Box, CreditCard, Wrench } from 'lucide-react';
 import { getUnidad } from '@/actions/consorcios';
 import { getPagos } from '@/actions/consorcios';
+import { getCuentaCorriente } from '@/actions/cuenta-corriente';
 
 export default async function UnidadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -25,6 +26,9 @@ export default async function UnidadDetailPage({ params }: { params: Promise<{ i
   // Get pagos for this unidad
   const pagosResult = await getPagos(id);
   const pagos = pagosResult.success ? pagosResult.data || [] : [];
+
+  const cuentaCorrienteResult = await getCuentaCorriente(id);
+  const cuentaCorriente = cuentaCorrienteResult.success ? cuentaCorrienteResult.data : null;
 
   // El embed propietario:propietarios(*) devuelve array por la dirección de
   // la FK (propietarios.unidad_id -> unidades.id); en la práctica hay 0 o 1
@@ -93,6 +97,48 @@ export default async function UnidadDetailPage({ params }: { params: Promise<{ i
           )}
         </div>
       </div>
+
+      {/* Cuenta corriente (ROADMAP Fase 1.2) */}
+      {cuentaCorriente && (
+        <div className="bg-white rounded-xl border p-6">
+          <h2 className="font-semibold mb-4">Cuenta Corriente</h2>
+          {cuentaCorriente.movimientos.length === 0 ? (
+            <p className="text-gray-500">Todavía no se importó ningún movimiento para esta unidad.</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
+                <div className={`p-3 rounded-lg ${cuentaCorriente.saldo.es_mora ? 'bg-red-50' : 'bg-green-50'}`}>
+                  <p className="text-gray-500">Meses atrasados</p>
+                  <p className={`text-xl font-bold ${cuentaCorriente.saldo.es_mora ? 'text-red-700' : 'text-green-700'}`}>
+                    {cuentaCorriente.saldo.meses_atrasados}
+                  </p>
+                </div>
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <p className="text-gray-500">Saldo pendiente</p>
+                  <p className="text-xl font-bold text-gray-800">
+                    ${Number(cuentaCorriente.saldo.monto_total).toLocaleString('es-AR')}
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {cuentaCorriente.movimientos.slice(0, 8).map((mov) => (
+                  <div key={mov.id} className="flex items-center justify-between py-2 border-b text-sm">
+                    <div>
+                      <p className="font-medium">{mov.concepto}</p>
+                      <p className="text-gray-500">
+                        {new Date(mov.periodo).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })}
+                      </p>
+                    </div>
+                    <span className={mov.tipo === 'debito' ? 'text-red-700 font-medium' : 'text-green-700 font-medium'}>
+                      {mov.tipo === 'debito' ? '-' : '+'}${Number(mov.importe).toLocaleString('es-AR')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Pagos */}
       <div className="bg-white rounded-xl border p-6">

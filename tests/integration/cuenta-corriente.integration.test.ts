@@ -1,27 +1,24 @@
 // =============================================================================
-// TEST DE INTEGRACIÓN: get_saldo_deudor — cálculo de meses de deuda
+// TEST DE INTEGRACIÓN: get_saldo_deudor — aging FIFO con pago parcial
 // =============================================================================
-// Caso de regresión conocido (originado en supabase/migrations/001_bloque0_arranque.sql):
-// `EXTRACT(MONTH FROM AGE(...))` sin sumar los años sólo toma el componente
-// de meses del intervalo, así que una deuda de 14 meses se calculaba como 2.
+// Cubre el caso central de la migración 007 (Fase 1, cuenta_corriente): un
+// crédito (pago) que no alcanza para cubrir toda la deuda se aplica en orden
+// FIFO, el período más viejo primero. Fixture: 3 períodos de débito
+// consecutivos de $50000 cada uno ($150000 en total) y un crédito único de
+// $75000 (un pago y medio).
 //
-// Desde la migración 007 (Fase 1, cuenta_corriente) la función ya no mira
-// `pagos.mes_pagado`: hace aging FIFO sobre los movimientos de
-// `cuenta_corriente` (ver sección 6 de esa migración). Este test quedó
-// desactualizado cuando se reescribió la función — insertaba un `pago` suelto
-// que la nueva versión ignora por completo — así que el fixture ahora inserta
-// 14 débitos reales en `cuenta_corriente` (uno por cada uno de los últimos 14
-// meses, sin ningún crédito) en vez de un `pago`.
+// Aritmética esperada (ver supabase/migrations/007_fase1_cuenta_corriente.sql,
+// sección 6, CTE `aging`): el crédito de 75000 cubre el período 1 entero
+// (50000) y deja 25000 disponibles para el período 2, que cuesta 50000 → le
+// quedan 25000 de saldo pendiente (>0, así que cuenta como atrasado aunque
+// esté parcialmente pago). El período 3 no recibe nada: 50000 pendientes.
+// Total: meses_atrasados = 2 (períodos 2 y 3), monto_total = 25000 + 50000 =
+// 75000.
 //
-// La función vive enteramente en plpgsql (`get_saldo_deudor`, SECURITY
-// DEFINER) — no hay una versión espejo de la fórmula en TS, así que en vez de
-// simular el cálculo en JS (lo que no probaría nada sobre el SQL real) este
-// test crea un fixture mínimo (consorcio → edificio → unidad → propietario →
-// 14 débitos en cuenta_corriente) y llama la función real vía RPC.
-//
-// Corre contra el proyecto Supabase real, igual que multi-tenant.integration.
-// Reproducir localmente: `npm test -- saldo-deudor.integration` con
-// `.env.local` presente. Se salta (no falla) si faltan credenciales.
+// Corre contra el proyecto Supabase real, igual que multi-tenant.integration
+// y saldo-deudor.integration. Reproducir localmente: `npm test --
+// cuenta-corriente.integration` con `.env.local` presente. Se salta (no
+// falla) si faltan credenciales.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { hasIntegrationCreds, signInComoUsuarioDeTest, ADMINISTRADORA_A, EMAIL_ADMIN_A } from './helpers';
@@ -29,8 +26,8 @@ import { hasIntegrationCreds, signInComoUsuarioDeTest, ADMINISTRADORA_A, EMAIL_A
 const correCreds = hasIntegrationCreds();
 if (!correCreds) {
   console.warn(
-    '[saldo-deudor.integration.test] SUPABASE_SERVICE_ROLE_KEY / .env.local ausentes: ' +
-      'se saltea el test de get_saldo_deudor (no falla).'
+    '[cuenta-corriente.integration.test] SUPABASE_SERVICE_ROLE_KEY / .env.local ausentes: ' +
+      'se saltea el test de aging FIFO (no falla).'
   );
 }
 
@@ -43,7 +40,7 @@ function primerDiaHaceNMeses(n: number): string {
   return `${yyyy}-${mm}-01`;
 }
 
-describe.skipIf(!correCreds)('get_saldo_deudor: cálculo de meses de deuda (RPC, Supabase real)', () => {
+describe.skipIf(!correCreds)('get_saldo_deudor: aging FIFO con pago parcial (RPC, Supabase real)', () => {
   let client: SupabaseClient;
   let consorcioId: string | null = null;
 
@@ -53,21 +50,20 @@ describe.skipIf(!correCreds)('get_saldo_deudor: cálculo de meses de deuda (RPC,
 
   afterAll(async () => {
     // Borrar el consorcio cascadea edificio → unidad → propietario →
-    // cuenta_corriente (todas las FK tienen ON DELETE CASCADE, ver
-    // supabase/migrations/007_fase1_cuenta_corriente.sql y schema.sql).
+    // cuenta_corriente (ON DELETE CASCADE, ver migración 007).
     if (consorcioId) {
       await client.from('consorcios').delete().eq('id', consorcioId);
     }
     await client.auth.signOut();
   });
 
-  it('una deuda de 14 meses da meses_atrasados = 14, no 2 (regresión del bug original)', async () => {
+  it('un crédito que cubre 1.5 períodos deja meses_atrasados = 2 y monto_total = 75000', async () => {
     const sufijo = `${Date.now()}`;
 
     const { data: consorcio, error: errConsorcio } = await client
       .from('consorcios')
       .insert({
-        nombre: `Test Bloque4 saldo-deudor ${sufijo}`,
+        nombre: `Test cuenta-corriente FIFO ${sufijo}`,
         direccion: 'Dirección de test',
         administradora_id: ADMINISTRADORA_A,
       })
@@ -95,30 +91,41 @@ describe.skipIf(!correCreds)('get_saldo_deudor: cálculo de meses de deuda (RPC,
       .insert({
         unidad_id: unidad!.id as string,
         nombre: 'Deudor',
-        apellido: 'De Prueba',
+        apellido: 'Parcial',
         dni: sufijo.slice(-8),
-        email: `deudor-test-${sufijo}@example.invalid`,
+        email: `deudor-parcial-test-${sufijo}@example.invalid`,
       })
       .select()
       .single();
     expect(errPropietario).toBeNull();
 
-    // 14 débitos de expensas, uno por cada uno de los últimos 14 meses, sin
-    // ningún crédito: get_saldo_deudor hace aging FIFO sobre estos movimientos
-    // (sección 6 de la migración 007), nunca sobre pagos.mes_pagado.
     const IMPORTE_MENSUAL = 50000;
-    const debitos = Array.from({ length: 14 }, (_, i) => ({
+    const debitos = [2, 1, 0].map((n) => ({
       unidad_id: unidad!.id as string,
       administradora_id: ADMINISTRADORA_A,
       consorcio_id: consorcioId as string,
       tipo: 'debito' as const,
       concepto: 'Expensas',
       importe: IMPORTE_MENSUAL,
-      periodo: primerDiaHaceNMeses(13 - i),
+      periodo: primerDiaHaceNMeses(n),
       origen: 'importacion' as const,
     }));
     const { error: errDebitos } = await client.from('cuenta_corriente').insert(debitos);
     expect(errDebitos).toBeNull();
+
+    // Un pago y medio: cubre el período más viejo entero y deja 25000 del
+    // segundo. El tercero (el más nuevo) queda sin tocar.
+    const { error: errCredito } = await client.from('cuenta_corriente').insert({
+      unidad_id: unidad!.id as string,
+      administradora_id: ADMINISTRADORA_A,
+      consorcio_id: consorcioId as string,
+      tipo: 'credito',
+      concepto: 'Pago parcial',
+      importe: 75000,
+      periodo: primerDiaHaceNMeses(2),
+      origen: 'pago',
+    });
+    expect(errCredito).toBeNull();
 
     const { data: saldo, error: errRpc } = await client.rpc('get_saldo_deudor', {
       p_unidad_id: unidad!.id as string,
@@ -128,9 +135,8 @@ describe.skipIf(!correCreds)('get_saldo_deudor: cálculo de meses de deuda (RPC,
     expect(saldo!.length).toBe(1);
 
     const fila = saldo![0] as { meses_atrasados: number; monto_total: number; es_mora: boolean };
-    expect(fila.meses_atrasados).toBe(14);
-    expect(fila.meses_atrasados).not.toBe(2); // el bug original daba esto
-    expect(fila.monto_total).toBe(14 * IMPORTE_MENSUAL);
-    expect(fila.es_mora).toBe(true);
+    expect(fila.meses_atrasados).toBe(2);
+    expect(fila.monto_total).toBe(25000 + IMPORTE_MENSUAL);
+    expect(fila.es_mora).toBe(false); // umbral de es_mora es >= 3 meses atrasados
   });
 });

@@ -5,7 +5,7 @@
 // =============================================================================
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Building2, Wrench, CreditCard, Users, Home, List, X, LogIn, LogOut, User as UserIcon } from 'lucide-react';
+import { Building2, Wrench, CreditCard, Users, Home, List, X, LogIn, LogOut, User as UserIcon, Upload } from 'lucide-react';
 import { useState } from 'react';
 import { useUser } from '@/hooks/useUser';
 
@@ -15,6 +15,7 @@ const navItems = [
   { href: '/mantenimiento', label: 'Mantenimiento', icon: Wrench },
   { href: '/pagos', label: 'Pagos', icon: CreditCard },
   { href: '/admin/mora', label: 'Mora', icon: Users },
+  { href: '/importador', label: 'Importar', icon: Upload },
 ];
 
 export function Header() {

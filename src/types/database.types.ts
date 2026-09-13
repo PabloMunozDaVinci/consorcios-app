@@ -248,6 +248,109 @@ export type Database = {
           },
         ]
       }
+      cuenta_corriente: {
+        Row: {
+          administradora_id: string
+          concepto: string
+          consorcio_id: string
+          contraasiento_de: string | null
+          created_at: string
+          created_by: string | null
+          fecha: string
+          fundamento_tasa: string | null
+          id: string
+          importacion_id: string | null
+          importe: number
+          origen: Database["public"]["Enums"]["movimiento_origen"]
+          pago_id: string | null
+          periodo: string
+          tasa_interes: number | null
+          tipo: Database["public"]["Enums"]["movimiento_tipo"]
+          unidad_id: string
+        }
+        Insert: {
+          administradora_id: string
+          concepto: string
+          consorcio_id: string
+          contraasiento_de?: string | null
+          created_at?: string
+          created_by?: string | null
+          fecha?: string
+          fundamento_tasa?: string | null
+          id?: string
+          importacion_id?: string | null
+          importe: number
+          origen: Database["public"]["Enums"]["movimiento_origen"]
+          pago_id?: string | null
+          periodo: string
+          tasa_interes?: number | null
+          tipo: Database["public"]["Enums"]["movimiento_tipo"]
+          unidad_id: string
+        }
+        Update: {
+          administradora_id?: string
+          concepto?: string
+          consorcio_id?: string
+          contraasiento_de?: string | null
+          created_at?: string
+          created_by?: string | null
+          fecha?: string
+          fundamento_tasa?: string | null
+          id?: string
+          importacion_id?: string | null
+          importe?: number
+          origen?: Database["public"]["Enums"]["movimiento_origen"]
+          pago_id?: string | null
+          periodo?: string
+          tasa_interes?: number | null
+          tipo?: Database["public"]["Enums"]["movimiento_tipo"]
+          unidad_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cuenta_corriente_administradora_id_fkey"
+            columns: ["administradora_id"]
+            isOneToOne: false
+            referencedRelation: "administradoras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cuenta_corriente_consorcio_id_fkey"
+            columns: ["consorcio_id"]
+            isOneToOne: false
+            referencedRelation: "consorcios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cuenta_corriente_contraasiento_de_fkey"
+            columns: ["contraasiento_de"]
+            isOneToOne: true
+            referencedRelation: "cuenta_corriente"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cuenta_corriente_importacion_id_fkey"
+            columns: ["importacion_id"]
+            isOneToOne: false
+            referencedRelation: "importaciones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cuenta_corriente_pago_id_fkey"
+            columns: ["pago_id"]
+            isOneToOne: false
+            referencedRelation: "pagos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cuenta_corriente_unidad_id_fkey"
+            columns: ["unidad_id"]
+            isOneToOne: false
+            referencedRelation: "unidades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       edificios: {
         Row: {
           administradora_id: string
@@ -295,6 +398,88 @@ export type Database = {
             columns: ["consortium_id"]
             isOneToOne: false
             referencedRelation: "consorcios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      importaciones: {
+        Row: {
+          administradora_id: string
+          archivo_nombre: string
+          confirmada_at: string | null
+          consorcio_id: string
+          created_at: string
+          created_by: string | null
+          edificio_id: string
+          estado: Database["public"]["Enums"]["importacion_estado"]
+          filas_error: number
+          filas_importadas: number
+          filas_totales: number
+          id: string
+          log: Json | null
+          mapeo_columnas: Json
+          periodo: string | null
+          revertida_at: string | null
+          tipo: Database["public"]["Enums"]["importacion_tipo"]
+        }
+        Insert: {
+          administradora_id: string
+          archivo_nombre: string
+          confirmada_at?: string | null
+          consorcio_id: string
+          created_at?: string
+          created_by?: string | null
+          edificio_id: string
+          estado?: Database["public"]["Enums"]["importacion_estado"]
+          filas_error?: number
+          filas_importadas?: number
+          filas_totales?: number
+          id?: string
+          log?: Json | null
+          mapeo_columnas: Json
+          periodo?: string | null
+          revertida_at?: string | null
+          tipo: Database["public"]["Enums"]["importacion_tipo"]
+        }
+        Update: {
+          administradora_id?: string
+          archivo_nombre?: string
+          confirmada_at?: string | null
+          consorcio_id?: string
+          created_at?: string
+          created_by?: string | null
+          edificio_id?: string
+          estado?: Database["public"]["Enums"]["importacion_estado"]
+          filas_error?: number
+          filas_importadas?: number
+          filas_totales?: number
+          id?: string
+          log?: Json | null
+          mapeo_columnas?: Json
+          periodo?: string | null
+          revertida_at?: string | null
+          tipo?: Database["public"]["Enums"]["importacion_tipo"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "importaciones_administradora_id_fkey"
+            columns: ["administradora_id"]
+            isOneToOne: false
+            referencedRelation: "administradoras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "importaciones_consorcio_id_fkey"
+            columns: ["consorcio_id"]
+            isOneToOne: false
+            referencedRelation: "consorcios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "importaciones_edificio_id_fkey"
+            columns: ["edificio_id"]
+            isOneToOne: false
+            referencedRelation: "edificios"
             referencedColumns: ["id"]
           },
         ]
@@ -780,6 +965,10 @@ export type Database = {
         | "apto_carta"
         | "inicio_juicio"
         | "juicio_en_curso"
+      importacion_estado: "pendiente" | "confirmada" | "revertida" | "error"
+      importacion_tipo: "padron" | "liquidacion"
+      movimiento_origen: "importacion" | "liquidacion" | "pago" | "ajuste"
+      movimiento_tipo: "debito" | "credito"
       rol_usuario: "super_admin" | "admin" | "operador" | "propietario"
       tipo_unidad: "depto" | "cochera" | "baulera"
     }
@@ -923,6 +1112,10 @@ export const Constants = {
         "inicio_juicio",
         "juicio_en_curso",
       ],
+      importacion_estado: ["pendiente", "confirmada", "revertida", "error"],
+      importacion_tipo: ["padron", "liquidacion"],
+      movimiento_origen: ["importacion", "liquidacion", "pago", "ajuste"],
+      movimiento_tipo: ["debito", "credito"],
       rol_usuario: ["super_admin", "admin", "operador", "propietario"],
       tipo_unidad: ["depto", "cochera", "baulera"],
     },

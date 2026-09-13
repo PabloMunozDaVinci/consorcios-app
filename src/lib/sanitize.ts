@@ -248,6 +248,9 @@ export const createPagoSchema = z.object({
   mes_pagado: z.string().regex(/^\d{4}-\d{2}$/),
   medio_pago: z.enum(['transferencia', 'rapipago', 'boca', 'tarjeta']).optional(),
   nro_comprobante: optionalText(100),
+  // Fase 1.4: por defecto se imputa al período declarado en mes_pagado; si
+  // true, se imputa al período más antiguo con saldo pendiente en cuenta_corriente.
+  imputar_mas_antiguo: optionalBool,
 });
 
 // Schema for create consorcio
@@ -295,6 +298,68 @@ export const createArregloSchema = z.object({
   es_area_comun: optionalBool,
 });
 
+// =============================================================================
+// Importador (ROADMAP Fase 1.3) — padrón y liquidación
+// =============================================================================
+// El archivo en sí (File) se valida aparte (tipo/tamaño) en la route handler;
+// estos schemas son para los campos del formulario y, en confirmar, para las
+// filas ya parseadas que el cliente manda de vuelta tal como las recibió en
+// la previsualización (no se vuelve a subir el archivo).
+
+/** Campos lógicos que el usuario puede mapear, por tipo de importación. */
+export const CAMPOS_PADRON = ['numero_unidad', 'piso', 'propietario_nombre', 'propietario_apellido', 'dni', 'email', 'telefono'] as const;
+export const CAMPOS_LIQUIDACION = ['numero_unidad', 'importe', 'concepto'] as const;
+
+const camposPadronObligatorios = ['numero_unidad', 'propietario_nombre', 'propietario_apellido', 'dni', 'email'] as const;
+const camposLiquidacionObligatorios = ['numero_unidad', 'importe'] as const;
+
+export const previsualizarImportacionSchema = z
+  .object({
+    edificio_id: z.string().uuid(),
+    tipo: z.enum(['padron', 'liquidacion']),
+    periodo: z.preprocess((v) => (v === '' || v == null ? undefined : v), z.string().regex(/^\d{4}-\d{2}$/).optional()),
+  })
+  .refine((data) => data.tipo !== 'liquidacion' || !!data.periodo, {
+    message: 'periodo es obligatorio para una importación de liquidación',
+    path: ['periodo'],
+  });
+
+/** Mapeo campo lógico -> nombre de columna del archivo subido. */
+const mapeoColumnasSchema = z.record(z.string(), z.string().min(1));
+
+/** Una fila ya parseada del archivo: columna del archivo -> valor de texto. */
+const filaArchivoSchema = z.record(z.string(), z.string());
+
+export const confirmarImportacionSchema = z
+  .object({
+    // consorcio_id NO se recibe acá a propósito (auditoría de la 008): antes
+    // se mandaba desde el cliente y se guardaba tal cual en `importaciones`,
+    // sin validar que `edificio_id` fuera realmente de ese consorcio — el
+    // trigger set_tenant_cols() ahora lo deriva de edificio_id, la única
+    // fuente de verdad.
+    edificio_id: z.string().uuid(),
+    tipo: z.enum(['padron', 'liquidacion']),
+    periodo: z.preprocess((v) => (v === '' || v == null ? undefined : v), z.string().regex(/^\d{4}-\d{2}$/).optional()),
+    archivo_nombre: z.string().min(1).max(255),
+    mapeo: mapeoColumnasSchema,
+    filas: z.array(filaArchivoSchema).min(1).max(5000),
+  })
+  .refine((data) => data.tipo !== 'liquidacion' || !!data.periodo, {
+    message: 'periodo es obligatorio para una importación de liquidación',
+    path: ['periodo'],
+  })
+  .refine(
+    (data) => {
+      const obligatorios = data.tipo === 'padron' ? camposPadronObligatorios : camposLiquidacionObligatorios;
+      return obligatorios.every((campo) => !!data.mapeo[campo]);
+    },
+    { message: 'Faltan columnas obligatorias en el mapeo', path: ['mapeo'] }
+  );
+
+export const revertirImportacionSchema = z.object({
+  importacion_id: z.string().uuid(),
+});
+
 // Type exports
 export type CreateAdminInput = z.infer<typeof createAdminSchema>;
 export type CreatePropietarioInput = z.infer<typeof createPropietarioSchema>;
@@ -305,6 +370,9 @@ export type CreateConsorcioInput = z.infer<typeof createConsorcioSchema>;
 export type CreateEdificioInput = z.infer<typeof createEdificioSchema>;
 export type CreateUnidadInput = z.infer<typeof createUnidadSchema>;
 export type CreateArregloInput = z.infer<typeof createArregloSchema>;
+export type PrevisualizarImportacionInput = z.infer<typeof previsualizarImportacionSchema>;
+export type ConfirmarImportacionInput = z.infer<typeof confirmarImportacionSchema>;
+export type RevertirImportacionInput = z.infer<typeof revertirImportacionSchema>;
 
 export type FieldErrors = Record<string, string>;
 

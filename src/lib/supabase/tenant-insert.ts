@@ -44,6 +44,13 @@ export function insertPropietario(supabase: Client, values: PropietarioInsert) {
   return supabase.from('propietarios').insert(values as Tables['propietarios']['Insert']);
 }
 
+/** Igual que insertPropietario, pero upsert por unidad_id (una unidad = un propietario, unique_propietario_por_unidad). Usado por el importador de padrón para reimportar sin duplicar. */
+export function upsertPropietario(supabase: Client, values: PropietarioInsert) {
+  return supabase
+    .from('propietarios')
+    .upsert(values as Tables['propietarios']['Insert'], { onConflict: 'unidad_id' });
+}
+
 export type PagoInsert = Omit<Tables['pagos']['Insert'], 'administradora_id'>;
 export function insertPago(supabase: Client, values: PagoInsert) {
   return supabase.from('pagos').insert(values as Tables['pagos']['Insert']);
@@ -57,4 +64,22 @@ export function insertMoraLog(supabase: Client, values: MoraLogInsert) {
 export type ArregloInsert = Omit<Tables['arreglos']['Insert'], 'administradora_id'>;
 export function insertArreglo(supabase: Client, values: ArregloInsert) {
   return supabase.from('arreglos').insert(values as Tables['arreglos']['Insert']);
+}
+
+// cuenta_corriente (007_fase1_cuenta_corriente.sql): administradora_id y
+// consorcio_id se derivan de unidades vía unidad_id, igual que unidades.
+export type CuentaCorrienteInsert = Omit<Tables['cuenta_corriente']['Insert'], 'administradora_id' | 'consorcio_id'>;
+export function insertCuentaCorriente(supabase: Client, values: CuentaCorrienteInsert | CuentaCorrienteInsert[]) {
+  return supabase.from('cuenta_corriente').insert(values as Tables['cuenta_corriente']['Insert'][]);
+}
+
+// importaciones (008_fase1_fixes_auditoria.sql): administradora_id y
+// consorcio_id se derivan de edificios vía edificio_id, igual que edificios
+// deriva el suyo de consorcios. (En la 007 esta tabla no tenía edificio_id y
+// los mandaba la aplicación directo; la auditoría encontró que eso permitía
+// un edificio_id y un consorcio_id inconsistentes entre sí, así que se
+// agregó el FK y se pasó al mismo patrón que el resto.)
+export type ImportacionInsert = Omit<Tables['importaciones']['Insert'], 'administradora_id' | 'consorcio_id'>;
+export function insertImportacion(supabase: Client, values: ImportacionInsert) {
+  return supabase.from('importaciones').insert(values as Tables['importaciones']['Insert']);
 }
