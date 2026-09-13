@@ -92,6 +92,7 @@ export default function NuevoPagoPage() {
         mes_pagado,
         medio_pago: formData.get('medio_pago') as string || 'transferencia',
         nro_comprobante: formData.get('nro_comprobante') as string || undefined,
+        imputar_mas_antiguo: formData.get('imputar_mas_antiguo') === 'on',
       };
       
       const response = await fetch('/api/pagos', {
@@ -204,6 +205,10 @@ export default function NuevoPagoPage() {
               </option>
             ))}
           </select>
+          <label className="flex items-center gap-2 mt-2 text-sm text-gray-600">
+            <input type="checkbox" name="imputar_mas_antiguo" className="rounded" />
+            Imputar a la cuenta corriente al período más antiguo con saldo pendiente, en vez de al mes de arriba
+          </label>
         </div>
 
         <div>

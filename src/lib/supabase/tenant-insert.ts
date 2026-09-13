@@ -44,11 +44,41 @@ export function insertPropietario(supabase: Client, values: PropietarioInsert) {
   return supabase.from('propietarios').insert(values as Tables['propietarios']['Insert']);
 }
 
-/** Igual que insertPropietario, pero upsert por unidad_id (una unidad = un propietario, unique_propietario_por_unidad). Usado por el importador de padrón para reimportar sin duplicar. */
-export function upsertPropietario(supabase: Client, values: PropietarioInsert) {
-  return supabase
+/**
+ * Igual que insertPropietario, pero upsert por unidad_id (una unidad = un
+ * propietario). Usado por el importador de padrón para reimportar sin
+ * duplicar.
+ *
+ * NO usa `.upsert({ onConflict: 'unidad_id' })`: el índice real en la DB
+ * viva es `ux_propietario_por_unidad UNIQUE (unidad_id) WHERE unidad_id IS
+ * NOT NULL` — un índice único PARCIAL, no un constraint pleno (a pesar del
+ * nombre `unique_propietario_por_unidad` de schema.sql, que no coincide con
+ * lo que hay aplicado). Postgres sólo puede inferir un `ON CONFLICT` contra
+ * un índice parcial si el `ON CONFLICT` repite el mismo `WHERE`, y
+ * `supabase-js`/PostgREST no exponen esa forma — de ahí el 42P10 "no unique
+ * or exclusion constraint matching the ON CONFLICT specification". Se
+ * resuelve a mano: buscar primero, y UPDATE o INSERT según corresponda.
+ */
+export async function upsertPropietario(supabase: Client, values: PropietarioInsert) {
+  const { data: existente, error: errorBusqueda } = await supabase
     .from('propietarios')
-    .upsert(values as Tables['propietarios']['Insert'], { onConflict: 'unidad_id' });
+    .select('id')
+    .eq('unidad_id', values.unidad_id as string)
+    .maybeSingle();
+
+  if (errorBusqueda) {
+    return { data: null, error: errorBusqueda };
+  }
+
+  if (existente) {
+    return supabase
+      .from('propietarios')
+      .update(values as Tables['propietarios']['Update'])
+      .eq('id', existente.id)
+      .select();
+  }
+
+  return insertPropietario(supabase, values).select();
 }
 
 export type PagoInsert = Omit<Tables['pagos']['Insert'], 'administradora_id'>;

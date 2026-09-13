@@ -6,6 +6,7 @@ import { ArrowLeft, User, Home, Car, Box, CreditCard, Wrench } from 'lucide-reac
 import { getUnidad } from '@/actions/consorcios';
 import { getPagos } from '@/actions/consorcios';
 import { getCuentaCorriente } from '@/actions/cuenta-corriente';
+import { formatearMesAnio } from '@/lib/date-ar';
 
 export default async function UnidadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -126,7 +127,7 @@ export default async function UnidadDetailPage({ params }: { params: Promise<{ i
                     <div>
                       <p className="font-medium">{mov.concepto}</p>
                       <p className="text-gray-500">
-                        {new Date(mov.periodo).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })}
+                        {formatearMesAnio(mov.periodo)}
                       </p>
                     </div>
                     <span className={mov.tipo === 'debito' ? 'text-red-700 font-medium' : 'text-green-700 font-medium'}>
@@ -157,7 +158,7 @@ export default async function UnidadDetailPage({ params }: { params: Promise<{ i
                 <div>
                   <p className="font-medium">${Number(pago.monto).toLocaleString('es-AR')}</p>
                   <p className="text-sm text-gray-500">
-                    {new Date(pago.mes_pagado).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })}
+                    {formatearMesAnio(pago.mes_pagado)}
                   </p>
                 </div>
                 <span className={`px-2 py-1 rounded-full text-xs ${

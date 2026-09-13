@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import { CreditCard, Plus, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { getAllPagos } from '@/actions/consorcios';
+import { formatearMesAnio, formatearFechaAR } from '@/lib/date-ar';
 
 // FORZAR RENDERIZADO DINÁMICO - Sin cache
 export const dynamic = 'force-dynamic';
@@ -67,7 +68,7 @@ export default async function PagosPage() {
                     ${Number(pago.monto).toLocaleString('es-AR')}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
-                    {pago.mes_pagado ? new Date(pago.mes_pagado).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' }) : '-'}
+                    {pago.mes_pagado ? formatearMesAnio(pago.mes_pagado) : '-'}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500 capitalize">
                     {pago.medio_pago || '-'}
@@ -76,7 +77,7 @@ export default async function PagosPage() {
                     <EstadoBadge estado={pago.estado ?? ''} />
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
-                    {pago.fecha_pago ? new Date(pago.fecha_pago).toLocaleDateString('es-AR') : '-'}
+                    {pago.fecha_pago ? formatearFechaAR(pago.fecha_pago) : '-'}
                   </td>
                 </tr>
               ))}
