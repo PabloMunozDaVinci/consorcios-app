@@ -65,16 +65,18 @@ El orden está pensado para tu posición: cada fase se puede mostrar y usar ante
 
 ---
 
-### FASE 1 — Multi-tenant + cuenta corriente + importación
+### FASE 1 — Multi-tenant + cuenta corriente + importación — ✅ implementada, falta el criterio de aceptación con datos reales
 **Esfuerzo: medio** · La base de todo, y la que no le pide nada a nadie.
 
 **Alcance:**
-- Nivel `administradoras` arriba de `consorcios`, con `administradora_id` desnormalizado en todas las tablas y RLS que lo fuerce
-- Tabla `usuarios` con roles reales (`super_admin`, `admin`, `operador`, `propietario`), reemplazando el hack de "sin `unidad_id` = admin"
-- **`cuenta_corriente` por unidad**: débitos y créditos, saldo derivado. Fuente única de verdad. Reemplaza el `150000 * 1.20` hardcodeado de hoy
-- **Importador de liquidaciones**: subís el CSV/Excel que la administradora ya emite y el sistema genera los débitos por unidad. Mapeo de columnas configurable, previsualización antes de confirmar, y detección de duplicados
-- Importación del padrón de unidades y propietarios desde Excel
-- Registro de pagos con imputación a la cuenta corriente
+- ✅ Nivel `administradoras` arriba de `consorcios`, con `administradora_id` desnormalizado en todas las tablas y RLS que lo fuerce (Bloque 1)
+- ✅ Tabla `usuarios` con roles reales (`super_admin`, `admin`, `operador`, `propietario`), reemplazando el hack de "sin `unidad_id` = admin" (Bloque 1)
+- ✅ **`cuenta_corriente` por unidad**: débitos y créditos, append-only, saldo derivado con aging FIFO (`get_saldo_deudor()`). Reemplaza el `150000 * 1.20` hardcodeado. Migraciones `007_fase1_cuenta_corriente.sql` + `008_fase1_fixes_auditoria.sql`
+- ✅ **Importador de liquidaciones** (`/importador/liquidacion`): CSV/Excel (`exceljs` + `csv-parse`), mapeo de columnas con memoria por edificio, previsualización obligatoria antes de confirmar, y guard de duplicados a nivel DB (índice único `(edificio_id, periodo)`)
+- ✅ Importación del padrón de unidades y propietarios desde Excel (`/importador/padron`)
+- ✅ Registro de pagos con imputación a la cuenta corriente (`imputar_mas_antiguo` opcional)
+
+**Pendiente**: el criterio de aceptación de abajo necesita una liquidación real de 3 meses de un edificio real para verificarse — no se hizo todavía. Dos rondas de auditoría RLS + tests de integración contra Supabase real ya verificaron el aislamiento multi-tenant y la lógica de aging, pero eso no reemplaza probarlo con los números reales de la administradora.
 
 **Criterio de aceptación:** importás la liquidación real de tu edificio de tres meses y la cuenta corriente de cada unidad coincide con lo que dice la administradora.
 

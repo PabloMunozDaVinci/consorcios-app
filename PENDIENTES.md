@@ -4,7 +4,31 @@
 
 ---
 
-## 📍 PARA RETOMAR LA PRÓXIMA SESIÓN (corte del 2026-09-11, sesión 3)
+## 📍 PARA RETOMAR LA PRÓXIMA SESIÓN (corte del 2026-09-13, sesión 4)
+
+**Estado**: Fase 1 del ROADMAP (`cuenta_corriente` + importador de padrón/liquidación)
+implementada y mergeada a `master` (commit `a966556`). Ver detalle en `ROADMAP.md`
+§Fase 1. 53/53 tests pasando, dos rondas de `auditor-rls` + `security-review`
+sobre el diff, 4 hallazgos reales encontrados y cerrados con test de
+integración contra Supabase real (no sólo lectura de código).
+
+**Pendiente de esta fase**:
+- El criterio de aceptación real (importar 3 meses de la liquidación real de
+  tu edificio y que la cuenta corriente coincida peso por peso) no se probó
+  — hace falta el archivo real de la administradora.
+- **Verificación visual en el navegador del importador**: quedó bloqueada
+  toda la sesión por falta de credenciales de un usuario `admin`/
+  `super_admin` que funcionen (las de `admin-a@example.invalid` documentadas
+  en sesiones anteriores ya no sirven — "Invalid login credentials"). Pasame
+  credenciales que anden o decime cómo generarlas, y hago la verificación en
+  el browser antes de dar la fase por cerrada del todo.
+
+**Siguiente paso natural**: Fase 2 (portal del propietario + reclamos) del
+`PROMPT-features.md`, o cerrar el pendiente de arriba primero — a tu criterio.
+
+---
+
+## Sesión 3 (2026-09-11) — para referencia histórica
 
 **Estado**: Bloques 0-4 completos, ítem 33 (Bloque 3) cerrado del todo, CSP
 estricta también en estilos, y las 4 ramas `fix/bloque-*` ya mergeadas a
