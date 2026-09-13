@@ -7,24 +7,30 @@
 ## 📍 PARA RETOMAR LA PRÓXIMA SESIÓN (corte del 2026-09-13, sesión 4)
 
 **Estado**: Fase 1 del ROADMAP (`cuenta_corriente` + importador de padrón/liquidación)
-implementada y mergeada a `master` (commit `a966556`). Ver detalle en `ROADMAP.md`
-§Fase 1. 53/53 tests pasando, dos rondas de `auditor-rls` + `security-review`
-sobre el diff, 4 hallazgos reales encontrados y cerrados con test de
-integración contra Supabase real (no sólo lectura de código).
+implementada, verificada en el navegador con una sesión admin real, y mergeada
+a `master` (`a966556`, `71c216a`, `cdefc89`). Ver detalle en `ROADMAP.md`
+§Fase 1. 53/53 tests, dos rondas de `auditor-rls` + `security-review` sobre el
+diff (4 hallazgos reales cerrados con test de integración contra Supabase
+real), y la verificación manual en el browser (login con `admin-a`, password
+reseteada vía `service_role` — la vieja ya no andaba) encontró y arregló 2
+bugs más que ningún test había agarrado:
+- Corrimiento de zona horaria mostrando `periodo`/`mes_pagado` (una
+  liquidación de enero se veía como "diciembre") — `src/lib/date-ar.ts`.
+- `upsertPropietario` fallaba siempre (42P10): el índice de
+  `propietarios.unidad_id` en la DB viva es único **parcial**, no el
+  constraint pleno que dice `schema.sql` (divergencia más, sumate a la lista
+  de "Divergencias schema.sql ↔ DB viva" más abajo en este archivo).
 
-**Pendiente de esta fase**:
-- El criterio de aceptación real (importar 3 meses de la liquidación real de
-  tu edificio y que la cuenta corriente coincida peso por peso) no se probó
-  — hace falta el archivo real de la administradora.
-- **Verificación visual en el navegador del importador**: quedó bloqueada
-  toda la sesión por falta de credenciales de un usuario `admin`/
-  `super_admin` que funcionen (las de `admin-a@example.invalid` documentadas
-  en sesiones anteriores ya no sirven — "Invalid login credentials"). Pasame
-  credenciales que anden o decime cómo generarlas, y hago la verificación en
-  el browser antes de dar la fase por cerrada del todo.
+También se agregó el checkbox de "imputar al saldo más antiguo" en el
+formulario de pagos, que había quedado sin exponer en la UI.
+
+**Pendiente de esta fase**: sólo el criterio de aceptación con datos 100%
+reales (importar 3 meses de la liquidación real de tu edificio y que la
+cuenta corriente coincida peso por peso) — hace falta el archivo real de la
+administradora, no algo que se pueda simular más.
 
 **Siguiente paso natural**: Fase 2 (portal del propietario + reclamos) del
-`PROMPT-features.md`, o cerrar el pendiente de arriba primero — a tu criterio.
+`PROMPT-features.md`.
 
 ---
 
@@ -311,6 +317,12 @@ Los 13 ítems (8-20) están hechos y verificados, no sólo con tsc/build:
 - Existían policies (`admins_manage_security_logs`, `admins_manage_blocked_ips`) que usaban
   el hack viejo `propietarios.unidad_id IS NULL`; la migración 002 las reemplazó por
   `es_super_admin()`.
+- **`unique_propietario_por_unidad`** (sesión 4): `schema.sql` documenta un `CONSTRAINT UNIQUE
+  (unidad_id)` pleno; la DB viva tiene en cambio `ux_propietario_por_unidad`, un índice único
+  **parcial** (`WHERE unidad_id IS NOT NULL`). Un `.upsert({onConflict:'unidad_id'})` no puede
+  resolver contra un índice parcial (Postgres exige que el `ON CONFLICT` repita el mismo
+  `WHERE`, y supabase-js no lo expone) — daba `42P10` siempre. `src/lib/supabase/tenant-insert.ts`
+  (`upsertPropietario`) ya no usa `.upsert()`, hace SELECT y después UPDATE o INSERT a mano.
 
 ## Decisiones tomadas que conviene revisar
 
